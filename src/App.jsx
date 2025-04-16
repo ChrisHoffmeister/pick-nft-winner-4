@@ -1,11 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { ethers } from 'ethers';
 import './style.css';
 
 const contractAddress = "0x01F170967F1Ec9088c169b20e57a2Eb8A4352cd3";
 const abi = [
-  "function totalSupply() view returns (uint256)",
-  "function tokenByIndex(uint256 index) view returns (uint256)"
+  "function getTokenIds() view returns (uint256[])"
 ];
 
 export default function App() {
@@ -17,10 +16,15 @@ export default function App() {
     try {
       const provider = new ethers.JsonRpcProvider("https://polygon-rpc.com");
       const contract = new ethers.Contract(contractAddress, abi, provider);
-      const totalSupply = await contract.totalSupply();
-      const randomIndex = Math.floor(Math.random() * Number(totalSupply));
-      const tokenId = await contract.tokenByIndex(randomIndex);
-      setTokenId(tokenId.toString());
+      
+      const tokenIds = await contract.getTokenIds();
+      if (tokenIds.length === 0) {
+        setTokenId("Keine Token vorhanden 😬");
+      } else {
+        const randomIndex = Math.floor(Math.random() * tokenIds.length);
+        const randomTokenId = tokenIds[randomIndex];
+        setTokenId(randomTokenId.toString());
+      }
     } catch (error) {
       console.error("Error fetching token ID:", error);
       setTokenId("Error 😕");
