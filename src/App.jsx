@@ -2,18 +2,15 @@ import { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
 import './style.css';
 
-const nftContractABI = [
-  "function getTokenIds() view returns (uint256[])"
-];
-
+// ABIs
+const nftContractABI = ["function getTokenIds() view returns (uint256[])"];
 const winnerRegistryABI = [
-  "function lastWinner() view returns (uint256)"
+  "function lastWinner() view returns (uint256)",
+  "function storeWinner(uint256 tokenId) public"
 ];
 
-// ➤ EDIT: Hier gibst du die Adressen ein:
-const nftContractAddress = "0x01F170967F1Ec9088c169b20e57a2Eb8A4352cd3"; // Dein NFT-Contract
-const winnerContractAddress = "0xA7Fa8C1F83cf415A4fAe7b8ba094EdB7b5Ef3E22"; // Dein WinnerRegistry-Contract
-
+// Konstante WinnerRegistry-Adresse
+const winnerContractAddress = "0x90F39455FA9D79042dDDCcff468882d484F165Cb";
 const provider = new ethers.JsonRpcProvider("https://polygon-rpc.com");
 
 export default function App() {
@@ -21,8 +18,11 @@ export default function App() {
   const [raribleUrl, setRaribleUrl] = useState(null);
   const [loading, setLoading] = useState(false);
   const [lastWinner, setLastWinner] = useState(null);
+  const [txHash, setTxHash] = useState(null);
+  const [nftContractAddress, setNftContractAddress] = useState("0x01F170967F1Ec9088c169b20e57a2Eb8A4352cd3"); // default
+  const [inputAddress, setInputAddress] = useState("");
 
-  // 🏆 Gewinner auslesen beim Start
+  // Letzten Gewinner aus WinnerRegistry laden
   useEffect(() => {
     const fetchLastWinner = async () => {
       try {
@@ -37,10 +37,12 @@ export default function App() {
     fetchLastWinner();
   }, []);
 
+  // Ziehung starten
   const fetchRandomTokenId = async () => {
     setLoading(true);
     setTokenId(null);
     setRaribleUrl(null);
+    setTxHash(null);
 
     try {
       const nftContract = new ethers.Contract(nftContractAddress, nftContractABI, provider);
@@ -55,10 +57,21 @@ export default function App() {
       const randomTokenId = tokenIds[randomIndex];
       setTokenId(randomTokenId.toString());
 
+      // Gewinner speichern (Transaktion)
+      const signerProvider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await signerProvider.getSigner();
+      const winnerContract = new ethers.Contract(winnerContractAddress, winnerRegistryABI, signer);
+      const tx = await winnerContract.storeWinner(randomTokenId);
+      await tx.wait();
+      setTxHash(tx.hash);
+
+      // Rarible-Link setzen
       const raribleLink = `https://rarible.com/token/polygon/${nftContractAddress}:${randomTokenId}`;
       setRaribleUrl(raribleLink);
+
+      setLastWinner(randomTokenId.toString());
     } catch (error) {
-      console.error("Fehler beim Abrufen des Tokens:", error);
+      console.error("Fehler beim Ziehen/Speichern:", error);
       setTokenId("Fehler 😕");
     }
 
@@ -68,12 +81,30 @@ export default function App() {
   return (
     <div className="container">
       <h1>Pick a Random NFT</h1>
+
+      {/* Eingabe: NFT-Contract-Adresse */}
+      <div style={{ marginBottom: '1rem' }}>
+        <input
+          type="text"
+          placeholder="NFT-Contract-Adresse eingeben"
+          value={inputAddress}
+          onChange={(e) => setInputAddress(e.target.value)}
+          style={{ padding: '0.5rem', width: '70%' }}
+        />
+        <button
+          onClick={() => setNftContractAddress(inputAddress)}
+          style={{ marginLeft: '1rem', padding: '0.5rem 1rem' }}
+        >
+          Übernehmen
+        </button>
+      </div>
+
       <button onClick={fetchRandomTokenId} disabled={loading}>
         {loading ? 'Lädt...' : 'Pick a Winner'}
       </button>
 
       {lastWinner && (
-        <div style={{ marginTop: '2rem', padding: '1rem', background: '#f3f3f3', borderRadius: '10px' }}>
+        <div className="infoBox">
           <p>🏆 <strong>Letzter Gewinner</strong>: Token ID <strong>{lastWinner}</strong></p>
           <p>
             📦 <a
@@ -90,7 +121,7 @@ export default function App() {
       {tokenId && (
         <div style={{ marginTop: '2rem' }}>
           <p>Zufällig gezogene Token ID: <strong>{tokenId}</strong></p>
-          {raribleUrl ? (
+          {raribleUrl && (
             <>
               <p>
                 <a href={raribleUrl} target="_blank" rel="noopener noreferrer">
@@ -99,6 +130,7 @@ export default function App() {
               </p>
               <iframe
                 src={raribleUrl}
+                title="Rarible NFT Viewer"
                 style={{
                   border: 'none',
                   width: '100%',
@@ -106,11 +138,20 @@ export default function App() {
                   marginTop: '1rem',
                   borderRadius: '8px',
                 }}
-                title="Rarible NFT Viewer"
               />
             </>
-          ) : (
-            <p>Kein Bild gefunden 🤷‍♂️</p>
+          )}
+          {txHash && (
+            <p style={{ marginTop: '1rem' }}>
+              ✅ Gespeichert auf der Blockchain:{" "}
+              <a
+                href={`https://polygonscan.com/tx/${txHash}`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {txHash}
+              </a>
+            </p>
           )}
         </div>
       )}
