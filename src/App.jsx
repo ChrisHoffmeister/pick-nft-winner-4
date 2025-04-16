@@ -1,64 +1,65 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
 import './style.css';
 
-const abi = [
+const nftContractABI = [
   "function getTokenIds() view returns (uint256[])"
 ];
 
+const winnerRegistryABI = [
+  "function lastWinner() view returns (uint256)"
+];
+
+// ➤ EDIT: Hier gibst du die Adressen ein:
+const nftContractAddress = "0x01F170967F1Ec9088c169b20e57a2Eb8A4352cd3"; // Dein NFT-Contract
+const winnerContractAddress = "0xA7Fa8C1F83cf415A4fAe7b8ba094EdB7b5Ef3E22"; // Dein WinnerRegistry-Contract
+
+const provider = new ethers.JsonRpcProvider("https://polygon-rpc.com");
+
 export default function App() {
-  const [contractAddress, setContractAddress] = useState('');
   const [tokenId, setTokenId] = useState(null);
   const [raribleUrl, setRaribleUrl] = useState(null);
-  const [txHash, setTxHash] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [lastWinner, setLastWinner] = useState(null);
 
-  const pickAndStoreWinner = async () => {
+  // 🏆 Gewinner auslesen beim Start
+  useEffect(() => {
+    const fetchLastWinner = async () => {
+      try {
+        const contract = new ethers.Contract(winnerContractAddress, winnerRegistryABI, provider);
+        const id = await contract.lastWinner();
+        setLastWinner(id.toString());
+      } catch (err) {
+        console.error("Fehler beim Abrufen des letzten Gewinners:", err);
+        setLastWinner("Noch kein Gewinner gespeichert ❔");
+      }
+    };
+    fetchLastWinner();
+  }, []);
+
+  const fetchRandomTokenId = async () => {
     setLoading(true);
-    setError(null);
     setTokenId(null);
-    setTxHash(null);
     setRaribleUrl(null);
 
     try {
-      // 1. Token IDs vom Contract holen
-      const provider = new ethers.JsonRpcProvider("https://polygon-rpc.com");
-      const contract = new ethers.Contract(contractAddress, abi, provider);
-
-      const tokenIds = await contract.getTokenIds();
-      if (!tokenIds || tokenIds.length === 0) {
-        setError("Keine Token vorhanden 😬");
+      const nftContract = new ethers.Contract(nftContractAddress, nftContractABI, provider);
+      const tokenIds = await nftContract.getTokenIds();
+      if (tokenIds.length === 0) {
+        setTokenId("Keine Token vorhanden 😬");
         setLoading(false);
         return;
       }
 
-      // 2. Zufällige ID auswählen
       const randomIndex = Math.floor(Math.random() * tokenIds.length);
       const randomTokenId = tokenIds[randomIndex];
       setTokenId(randomTokenId.toString());
 
-      // 3. Rarible-URL vorbereiten
-      const raribleLink = `https://rarible.com/token/polygon/${contractAddress}:${randomTokenId}`;
+      const raribleLink = `https://rarible.com/token/polygon/${nftContractAddress}:${randomTokenId}`;
       setRaribleUrl(raribleLink);
-
-      // 4. API aufrufen für On-Chain-Transaktion
-      const response = await fetch('/api/pick-winner', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contractAddress,
-          winnerId: Number(randomTokenId)
-        })
-      });
-
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Transaktion fehlgeschlagen');
-
-      setTxHash(data.txHash);
-    } catch (err) {
-      console.error(err);
-      setError(err.message || 'Unbekannter Fehler');
+    } catch (error) {
+      console.error("Fehler beim Abrufen des Tokens:", error);
+      setTokenId("Fehler 😕");
     }
 
     setLoading(false);
@@ -66,31 +67,30 @@ export default function App() {
 
   return (
     <div className="container">
-      <h1>Pick a Random NFT & Store on Chain</h1>
-
-      <input
-        type="text"
-        placeholder="Smart Contract Adresse eingeben"
-        value={contractAddress}
-        onChange={(e) => setContractAddress(e.target.value)}
-        style={{
-          width: '100%',
-          padding: '0.8rem',
-          marginBottom: '1rem',
-          borderRadius: '6px',
-          border: '1px solid #ccc'
-        }}
-      />
-
-      <button onClick={pickAndStoreWinner} disabled={loading || !contractAddress}>
-        {loading ? 'Wird ausgeführt…' : 'Pick Winner on Chain'}
+      <h1>Pick a Random NFT</h1>
+      <button onClick={fetchRandomTokenId} disabled={loading}>
+        {loading ? 'Lädt...' : 'Pick a Winner'}
       </button>
+
+      {lastWinner && (
+        <div style={{ marginTop: '2rem', padding: '1rem', background: '#f3f3f3', borderRadius: '10px' }}>
+          <p>🏆 <strong>Letzter Gewinner</strong>: Token ID <strong>{lastWinner}</strong></p>
+          <p>
+            📦 <a
+              href={`https://polygonscan.com/address/${winnerContractAddress}`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Smart Contract auf Polygonscan
+            </a>
+          </p>
+        </div>
+      )}
 
       {tokenId && (
         <div style={{ marginTop: '2rem' }}>
           <p>Zufällig gezogene Token ID: <strong>{tokenId}</strong></p>
-
-          {raribleUrl && (
+          {raribleUrl ? (
             <>
               <p>
                 <a href={raribleUrl} target="_blank" rel="noopener noreferrer">
@@ -109,20 +109,11 @@ export default function App() {
                 title="Rarible NFT Viewer"
               />
             </>
-          )}
-
-          {txHash && (
-            <p style={{ marginTop: '1rem' }}>
-              ✅ Gespeichert auf der Blockchain: <br />
-              <a href={`https://polygonscan.com/tx/${txHash}`} target="_blank" rel="noopener noreferrer">
-                {txHash}
-              </a>
-            </p>
+          ) : (
+            <p>Kein Bild gefunden 🤷‍♂️</p>
           )}
         </div>
       )}
-
-      {error && <p style={{ color: 'red', marginTop: '1rem' }}>❌ {error}</p>}
     </div>
   );
 }
