@@ -1,43 +1,43 @@
 import { useState } from 'react';
-import { ethers } from 'ethers';
 import './style.css';
 
-const contractAddress = "0x01F170967F1Ec9088c169b20e57a2Eb8A4352cd3";
-const abi = [
-  "function getTokenIds() view returns (uint256[])"
-];
-
 export default function App() {
-  const [tokenId, setTokenId] = useState(null);
-  const [raribleUrl, setRaribleUrl] = useState(null);
+  const [contractAddress, setContractAddress] = useState('');
+  const [tokenIds, setTokenIds] = useState('');
+  const [txHash, setTxHash] = useState(null);
+  const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  const fetchRandomTokenId = async () => {
+  const handlePick = async () => {
     setLoading(true);
-    setTokenId(null);
-    setRaribleUrl(null);
+    setError(null);
+    setTxHash(null);
 
     try {
-      const provider = new ethers.JsonRpcProvider("https://polygon-rpc.com");
-      const contract = new ethers.Contract(contractAddress, abi, provider);
+      const idArray = tokenIds
+        .split(',')
+        .map((id) => id.trim())
+        .filter((id) => id !== '')
+        .map((id) => Number(id));
 
-      const tokenIds = await contract.getTokenIds();
-      if (tokenIds.length === 0) {
-        setTokenId("Keine Token vorhanden 😬");
-        setLoading(false);
-        return;
-      }
+      const res = await fetch('/api/pick-winner', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          contractAddress,
+          tokenIds: idArray
+        })
+      });
 
-      const randomIndex = Math.floor(Math.random() * tokenIds.length);
-      const randomTokenId = tokenIds[randomIndex];
-      setTokenId(randomTokenId.toString());
+      const data = await res.json();
 
-      // Bild über Rarible
-      const raribleLink = `https://rarible.com/token/polygon/${contractAddress}:${randomTokenId}`;
-      setRaribleUrl(raribleLink);
-    } catch (error) {
-      console.error("Error fetching token:", error);
-      setTokenId("Error 😕");
+      if (!res.ok) throw new Error(data.error || 'Unknown error');
+
+      setTxHash(data.txHash);
+    } catch (err) {
+      setError(err.message);
     }
 
     setLoading(false);
@@ -45,38 +45,42 @@ export default function App() {
 
   return (
     <div className="container">
-      <h1>Pick a Random NFT</h1>
-      <button onClick={fetchRandomTokenId} disabled={loading}>
-        {loading ? 'Loading...' : 'Pick a Winner'}
+      <h1>Pick a Winner (on-chain)</h1>
+
+      <input
+        type="text"
+        placeholder="Smart Contract Adresse (Polygon)"
+        value={contractAddress}
+        onChange={(e) => setContractAddress(e.target.value)}
+        style={{ width: '100%', padding: '0.8rem', marginBottom: '1rem' }}
+      />
+
+      <textarea
+        rows="3"
+        placeholder="Token IDs (z. B. 1,2,3,4)"
+        value={tokenIds}
+        onChange={(e) => setTokenIds(e.target.value)}
+        style={{ width: '100%', padding: '0.8rem', marginBottom: '1rem' }}
+      />
+
+      <button onClick={handlePick} disabled={loading || !contractAddress || !tokenIds}>
+        {loading ? 'Picking…' : 'Pick Winner on Chain'}
       </button>
 
-      {tokenId && (
-        <div style={{ marginTop: '2rem' }}>
-          <p>Zufällig gezogene Token ID: <strong>{tokenId}</strong></p>
-          {raribleUrl ? (
-            <>
-              <p>
-                <a href={raribleUrl} target="_blank" rel="noopener noreferrer">
-                  NFT auf Rarible ansehen
-                </a>
-              </p>
-              <iframe
-                src={raribleUrl}
-                style={{
-                  border: 'none',
-                  width: '100%',
-                  height: '600px',
-                  marginTop: '1rem',
-                  borderRadius: '8px',
-                }}
-                title="Rarible NFT Viewer"
-              />
-            </>
-          ) : (
-            <p>Kein Bild gefunden 🤷‍♂️</p>
-          )}
-        </div>
+      {txHash && (
+        <p style={{ marginTop: '1rem' }}>
+          ✅ Transaktion erfolgreich: <br />
+          <a
+            href={`https://polygonscan.com/tx/${txHash}`}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {txHash}
+          </a>
+        </p>
       )}
+
+      {error && <p style={{ color: 'red', marginTop: '1rem' }}>❌ {error}</p>}
     </div>
   );
 }
