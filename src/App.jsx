@@ -22,10 +22,12 @@ export default function App() {
   const [usedTokenIds, setUsedTokenIds] = useState([]);
   const [availableTokenIds, setAvailableTokenIds] = useState([]);
   const [lastWinners, setLastWinners] = useState([]);
+  const [allWinners, setAllWinners] = useState([]);  // Store all winners here
   const [tokenImages, setTokenImages] = useState([]);
   const [txHash, setTxHash] = useState(null);
   const [loading, setLoading] = useState(false);
 
+  // Fetch initial data when the contract address is set
   useEffect(() => {
     const fetchInitialData = async () => {
       try {
@@ -42,6 +44,29 @@ export default function App() {
     };
     fetchInitialData();
   }, [nftContractAddress]);
+
+  // Handle contract address change and reset data
+  const handleContractChange = async () => {
+    setUsedTokenIds([]); // Reset saved winners
+    setAvailableTokenIds([]); // Reset available token IDs
+    setLastWinners([]); // Reset last winners
+    setAllWinners([]); // Reset all winners
+    setTokenImages([]); // Reset token images
+    setTxHash(null); // Reset transaction hash
+
+    // Now fetch data for the new contract
+    try {
+      const nftContract = new ethers.Contract(nftContractAddress, nftContractABI, provider);
+      const tokenIds = await nftContract.getTokenIds();
+      setAvailableTokenIds(tokenIds.map(id => id.toString()));
+
+      const winnerContract = new ethers.Contract(winnerContractAddress, winnerRegistryABI, provider);
+      const winners = await winnerContract.getWinners();
+      setUsedTokenIds(winners.map(id => id.toString()));
+    } catch (err) {
+      console.error("Error fetching contract data:", err);
+    }
+  };
 
   const fetchAndStoreWinners = async () => {
     setLoading(true);
@@ -77,6 +102,9 @@ export default function App() {
 
       setLastWinners(selected);
       setUsedTokenIds(prev => [...prev, ...selected]);
+
+      // Add the new winners to the allWinners array
+      setAllWinners(prev => [...prev, ...selected]);
 
       // Fetch token images
       const nftContract = new ethers.Contract(nftContractAddress, nftContractABI, provider);
@@ -117,7 +145,7 @@ export default function App() {
           style={{ padding: '0.5rem', width: '70%' }}
         />
         <button
-          onClick={() => setNftContractAddress(inputAddress)}
+          onClick={handleContractChange}
           style={{ marginLeft: '1rem', padding: '0.5rem 1rem' }}
         >
           Apply
@@ -152,12 +180,12 @@ export default function App() {
         </p>
       )}
 
-      {/* Winner IDs List */}
-      {lastWinners.length > 0 && (
+      {/* Winner IDs List (All Winners) */}
+      {allWinners.length > 0 && (
         <div style={{ marginTop: '2rem' }}>
           <h2>Winners 🎉</h2>
           <ul style={{ listStyleType: 'none', padding: '0', textAlign: 'center' }}>
-            {lastWinners.map((id, index) => (
+            {allWinners.map((id, index) => (
               <li key={index} style={{ fontSize: '18px', marginBottom: '10px' }}>
                 Token ID: {id}
               </li>
