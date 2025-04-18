@@ -63,6 +63,12 @@ export default function App() {
 
     try {
       const tokenIds = await tryFetchTokenIds(address);
+      if (tokenIds.length === 0) {
+        alert("No NFTs found.");
+        setAvailableTokenIds([]);
+        setUsedTokenIds([]);
+        return;
+      }
       setAvailableTokenIds(tokenIds);
 
       const winnerContract = new ethers.Contract(winnerContractAddress, winnerRegistryABI, provider);
@@ -81,10 +87,11 @@ export default function App() {
     try {
       const tokenIds = await nftContract.getTokenIds();
       if (tokenIds.length > 0) {
+        console.log("getTokenIds success:", tokenIds);
         return tokenIds.map(id => id.toString());
       }
     } catch (e) {
-      console.log("getTokenIds() not available, falling back to ownerOf scanning.");
+      console.warn("getTokenIds() failed, trying ownerOf fallback.");
     }
 
     const foundTokenIds = [];
@@ -95,10 +102,10 @@ export default function App() {
           foundTokenIds.push(tokenId.toString());
         }
       } catch (e) {
-        if (tokenId > 20 && foundTokenIds.length === 0) break;
-        if (foundTokenIds.length > 0) break;
+        continue;
       }
     }
+    console.log("Fallback ownerOf found:", foundTokenIds);
     return foundTokenIds;
   };
 
