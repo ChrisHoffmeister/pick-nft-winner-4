@@ -8,12 +8,12 @@ const nftContractABI = [
   "function tokenURI(uint256 tokenId) view returns (string)"
 ];
 const winnerRegistryABI = [
-  "function getWinners() view returns (uint256[])",
-  "function storeWinners(uint256[] calldata tokenIds) public"
+  "function getWinners(address nftContract) view returns (uint256[])",
+  "function storeWinners(address nftContract, uint256[] calldata tokenIds) public"
 ];
 
-// Winner Contract (Fixed)
-const winnerContractAddress = "0x5884711d09B97fb4F519ABd0910d77914FFa9730";
+// Der richtige Smart Contract (jetzt mit der neuen Adresse)
+const winnerContractAddress = "0xE0aA2Ffb185d39C9D3F1CA6a0239EFeC9E151B27";
 const provider = new ethers.JsonRpcProvider("https://polygon-rpc.com");
 
 export default function App() {
@@ -26,13 +26,16 @@ export default function App() {
   const [txHash, setTxHash] = useState(null);
   const [loading, setLoading] = useState(false);
 
+  // Fetch the winners for the current contract and available token IDs
   useEffect(() => {
     const fetchInitialData = async () => {
       try {
+        // Fetch winners for the selected contract
         const winnerContract = new ethers.Contract(winnerContractAddress, winnerRegistryABI, provider);
-        const winners = await winnerContract.getWinners();
+        const winners = await winnerContract.getWinners(nftContractAddress);
         setUsedTokenIds(winners.map(id => id.toString()));
 
+        // Fetch available token IDs for the selected NFT contract
         const nftContract = new ethers.Contract(nftContractAddress, nftContractABI, provider);
         const tokenIds = await nftContract.getTokenIds();
         setAvailableTokenIds(tokenIds.map(id => id.toString()));
@@ -40,8 +43,9 @@ export default function App() {
         console.error("Error loading initial data:", err);
       }
     };
+
     fetchInitialData();
-  }, [nftContractAddress]);
+  }, [nftContractAddress]); // Trigger this effect whenever nftContractAddress changes
 
   const fetchAndStoreWinners = async () => {
     setLoading(true);
@@ -50,7 +54,6 @@ export default function App() {
     setTxHash(null);
 
     try {
-      // Filter available tokens to avoid used ones
       const filteredTokens = availableTokenIds.filter(id => !usedTokenIds.includes(id));
       if (filteredTokens.length < 4) {
         alert("Not enough available NFTs to draw! ❌");
@@ -72,11 +75,10 @@ export default function App() {
       const signer = await signerProvider.getSigner();
       const winnerContract = new ethers.Contract(winnerContractAddress, winnerRegistryABI, signer);
 
-      const tx = await winnerContract.storeWinners(selected);
+      const tx = await winnerContract.storeWinners(nftContractAddress, selected);
       await tx.wait();
       setTxHash(tx.hash);
 
-      // Update last winners and used token ids
       setLastWinners(selected);
       setUsedTokenIds(prev => [...prev, ...selected]);
 
