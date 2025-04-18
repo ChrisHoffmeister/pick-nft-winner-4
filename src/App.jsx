@@ -64,7 +64,7 @@ export default function App() {
     try {
       const tokenIds = await tryFetchTokenIds(address);
       if (tokenIds.length === 0) {
-        alert("No NFTs found.");
+        alert("No NFTs found after fallback ownerOf(1-300).");
         setAvailableTokenIds([]);
         setUsedTokenIds([]);
         return;
@@ -84,28 +84,30 @@ export default function App() {
 
   const tryFetchTokenIds = async (nftAddress) => {
     const nftContract = new ethers.Contract(nftAddress, nftContractABI, provider);
+    let tokenIds = [];
+
     try {
-      const tokenIds = await nftContract.getTokenIds();
+      tokenIds = await nftContract.getTokenIds();
       if (tokenIds.length > 0) {
-        console.log("getTokenIds success:", tokenIds);
+        console.log("getTokenIds() success:", tokenIds);
         return tokenIds.map(id => id.toString());
       }
     } catch (e) {
-      console.warn("getTokenIds() failed, trying ownerOf fallback.");
+      console.warn("getTokenIds() failed, fallback to ownerOf().");
     }
 
     const foundTokenIds = [];
-    for (let tokenId = 1; tokenId <= 1000; tokenId++) {
+    for (let tokenId = 1; tokenId <= 300; tokenId++) {
       try {
         const owner = await nftContract.ownerOf(tokenId);
         if (owner && owner !== ethers.ZeroAddress) {
           foundTokenIds.push(tokenId.toString());
         }
       } catch (e) {
-        continue;
+        continue; // ignore errors
       }
     }
-    console.log("Fallback ownerOf found:", foundTokenIds);
+    console.log("ownerOf() fallback found:", foundTokenIds);
     return foundTokenIds;
   };
 
