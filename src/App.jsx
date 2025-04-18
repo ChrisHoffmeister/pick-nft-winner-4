@@ -19,9 +19,9 @@ const provider = new ethers.JsonRpcProvider("https://polygon-rpc.com");
 export default function App() {
   const [nftContractAddress, setNftContractAddress] = useState("0x01F170967F1Ec9088c169b20e57a2Eb8A4352cd3");
   const [inputAddress, setInputAddress] = useState("");
-  const [usedTokenIds, setUsedTokenIds] = useState([]);
+  const [usedTokenIds, setUsedTokenIds] = useState([]);  // IDs der vorherigen Ziehungen
   const [availableTokenIds, setAvailableTokenIds] = useState([]);
-  const [lastWinners, setLastWinners] = useState([]);
+  const [lastWinners, setLastWinners] = useState([]);  // IDs der aktuellen Ziehung
   const [tokenImages, setTokenImages] = useState([]);
   const [txHash, setTxHash] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -49,14 +49,14 @@ export default function App() {
 
   const fetchAndStoreWinners = async () => {
     setLoading(true);
-    setLastWinners([]);
+    setLastWinners([]);  // Reset the latest winners
     setTokenImages([]);
     setTxHash(null);
 
     try {
       // Filter out the used token IDs
       const filteredTokens = availableTokenIds.filter(id => !usedTokenIds.includes(id));
-      
+
       // Check if there are enough tokens to draw
       if (filteredTokens.length < 4) {
         alert("Not enough available NFTs to draw! ❌");
@@ -83,10 +83,9 @@ export default function App() {
       await tx.wait();
       setTxHash(tx.hash);
 
-      // Update state with the new winners and mark them as used
+      // Update state with the new winners, but do not add them to previous draws yet
       setLastWinners(selected);
-      setUsedTokenIds(prev => [...prev, ...selected]);
-
+      
       // Fetch token images for the winners
       const nftContract = new ethers.Contract(nftContractAddress, nftContractABI, provider);
       const images = [];
