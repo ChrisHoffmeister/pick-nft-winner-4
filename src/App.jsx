@@ -21,6 +21,7 @@ export default function App() {
   const [inputAddress, setInputAddress] = useState("");
   const [usedTokenIds, setUsedTokenIds] = useState([]);
   const [availableTokenIds, setAvailableTokenIds] = useState([]);
+  const [allDrawnWinners, setAllDrawnWinners] = useState([]);  // All winners from past draws
   const [lastWinners, setLastWinners] = useState([]);
   const [tokenImages, setTokenImages] = useState([]);
   const [txHash, setTxHash] = useState(null);
@@ -75,7 +76,10 @@ export default function App() {
       await tx.wait();
       setTxHash(tx.hash);
 
+      // Store the latest winners and add them to the history
       setLastWinners(selected);
+      setAllDrawnWinners(prev => [selected, ...prev]);
+
       setUsedTokenIds(prev => [...prev, ...selected]);
 
       // Fetch token images
@@ -135,7 +139,7 @@ export default function App() {
         </p>
       )}
 
-      {/* Last Draw */}
+      {/* Latest Draw */}
       {lastWinners.length > 0 && (
         <div style={{ marginTop: '2rem' }}>
           <h2>Latest Draw 🎉</h2>
@@ -170,7 +174,44 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* Previous Draws */}
+      {allDrawnWinners.length > 0 && (
+        <div style={{ marginTop: '2rem' }}>
+          <h2>Previous Draws 🏆</h2>
+          {allDrawnWinners.map((draw, index) => (
+            <div key={index} style={{ marginBottom: '1rem' }}>
+              <h3>Draw {index + 1}</h3>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px', justifyContent: 'center' }}>
+                {draw.map((id, idx) => (
+                  <div
+                    key={idx}
+                    style={{
+                      width: '220px',
+                      textAlign: 'center',
+                      background: '#f9f9f9',
+                      padding: '1rem',
+                      borderRadius: '10px',
+                      boxShadow: '0 4px 8px rgba(0, 0, 0, 0.1)',
+                    }}
+                  >
+                    <p><strong>Token ID: {id}</strong></p>
+                    {tokenImages[idx] ? (
+                      <img
+                        src={tokenImages[idx]}
+                        alt={`NFT ${id}`}
+                        style={{ width: '100%', borderRadius: '8px', marginTop: '0.5rem' }}
+                      />
+                    ) : (
+                      <p>No image available 🖼️</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
-
