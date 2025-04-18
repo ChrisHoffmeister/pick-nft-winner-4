@@ -2,159 +2,143 @@ import { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
 import './style.css';
 
-// ABIs
 const nftContractABI = ["function getTokenIds() view returns (uint256[])"];
-const winnerRegistryABI = [
-  "function lastWinner() view returns (uint256)",
-  "function storeWinner(uint256 tokenId) public"
+const winnerContractAddress = "0x5884711d09B97fb4F519ABd0910d77914FFa9730";
+const winnerContractABI = [
+  "function getWinners() view returns (uint256[])",
+  "function hasAlreadyWon(uint256 tokenId) view returns (bool)",
 ];
-
-// Konstante WinnerRegistry-Adresse
-const winnerContractAddress = "0x90F39455FA9D79042dDDCcff468882d484F165Cb";
 const provider = new ethers.JsonRpcProvider("https://polygon-rpc.com");
 
 export default function App() {
-  const [tokenId, setTokenId] = useState(null);
-  const [raribleUrl, setRaribleUrl] = useState(null);
+  const [tokenIds, setTokenIds] = useState([]);
+  const [drawnTokens, setDrawnTokens] = useState([]);
+  const [winners, setWinners] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [lastWinner, setLastWinner] = useState(null);
-  const [txHash, setTxHash] = useState(null);
-  const [nftContractAddress, setNftContractAddress] = useState("0x01F170967F1Ec9088c169b20e57a2Eb8A4352cd3"); // default
+  const [nftContractAddress, setNftContractAddress] = useState("0x01F170967F1Ec9088c169b20e57a2Eb8A4352cd3");
   const [inputAddress, setInputAddress] = useState("");
 
-  // Letzten Gewinner aus WinnerRegistry laden
+  // Gewinner laden
   useEffect(() => {
-    const fetchLastWinner = async () => {
-      try {
-        const contract = new ethers.Contract(winnerContractAddress, winnerRegistryABI, provider);
-        const id = await contract.lastWinner();
-        setLastWinner(id.toString());
-      } catch (err) {
-        console.error("Fehler beim Abrufen des letzten Gewinners:", err);
-        setLastWinner("Noch kein Gewinner gespeichert ❔");
-      }
-    };
-    fetchLastWinner();
+    fetchWinners();
   }, []);
 
-  // Ziehung starten
-  const fetchRandomTokenId = async () => {
+  async function fetchWinners() {
+    try {
+      const contract = new ethers.Contract(winnerContractAddress, winnerContractABI, provider);
+      const ids = await contract.getWinners();
+      setWinners(ids.map(id => id.toString()));
+    } catch (err) {
+      console.error("Fehler beim Abrufen der Gewinner:", err);
+    }
+  }
+
+  // Ziehe 4 zufällige TokenIds
+  async function drawWinners() {
     setLoading(true);
-    setTokenId(null);
-    setRaribleUrl(null);
-    setTxHash(null);
+    setDrawnTokens([]);
 
     try {
       const nftContract = new ethers.Contract(nftContractAddress, nftContractABI, provider);
-      const tokenIds = await nftContract.getTokenIds();
-      if (tokenIds.length === 0) {
-        setTokenId("Keine Token vorhanden 😬");
+      const allTokenIds = await nftContract.getTokenIds();
+
+      const available = [];
+
+      for (let i = 0; i < allTokenIds.length; i++) {
+        const id = allTokenIds[i];
+        const hasWon = await hasAlreadyWon(id);
+        if (!hasWon) available.push(id.toString());
+      }
+
+      if (available.length < 4) {
+        alert("Nicht genug unvergebene NFTs übrig!");
         setLoading(false);
         return;
       }
 
-      const randomIndex = Math.floor(Math.random() * tokenIds.length);
-      const randomTokenId = tokenIds[randomIndex];
-      setTokenId(randomTokenId.toString());
+      const selected = [];
+      while (selected.length < 4) {
+        const randomIndex = Math.floor(Math.random() * available.length);
+        selected.push(available[randomIndex]);
+        available.splice(randomIndex, 1);
+      }
 
-      // Gewinner speichern (Transaktion)
-      const signerProvider = new ethers.BrowserProvider(window.ethereum);
-      const signer = await signerProvider.getSigner();
-      const winnerContract = new ethers.Contract(winnerContractAddress, winnerRegistryABI, signer);
-      const tx = await winnerContract.storeWinner(randomTokenId);
-      await tx.wait();
-      setTxHash(tx.hash);
+      setDrawnTokens(selected);
 
-      // Rarible-Link setzen
-      const raribleLink = `https://rarible.com/token/polygon/${nftContractAddress}:${randomTokenId}`;
-      setRaribleUrl(raribleLink);
+      // jetzt API Call
+      const response = await fetch('/api/pick-winner', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tokenIds: selected }),
+      });
 
-      setLastWinner(randomTokenId.toString());
+      const data = await response.json();
+      console.log('Transaction:', data);
+      fetchWinners();
+
     } catch (error) {
-      console.error("Fehler beim Ziehen/Speichern:", error);
-      setTokenId("Fehler 😕");
+      console.error("Fehler beim Ziehen:", error);
     }
 
     setLoading(false);
-  };
+  }
+
+  async function hasAlreadyWon(tokenId) {
+    try {
+      const contract = new ethers.Contract(winnerContractAddress, winnerContractABI, provider);
+      return await contract.hasAlreadyWon(tokenId);
+    } catch (err) {
+      console.error('Fehler bei hasAlreadyWon:', err);
+      return false;
+    }
+  }
 
   return (
     <div className="container">
-      <h1>Pick a Random NFT</h1>
+      <h1>Pick 4 Random Winners 🎉</h1>
 
-      {/* Eingabe: NFT-Contract-Adresse */}
-      <div style={{ marginBottom: '1rem' }}>
+      <div className="addressInput">
         <input
           type="text"
           placeholder="NFT-Contract-Adresse eingeben"
           value={inputAddress}
           onChange={(e) => setInputAddress(e.target.value)}
-          style={{ padding: '0.5rem', width: '70%' }}
         />
-        <button
-          onClick={() => setNftContractAddress(inputAddress)}
-          style={{ marginLeft: '1rem', padding: '0.5rem 1rem' }}
-        >
+        <button onClick={() => setNftContractAddress(inputAddress)}>
           Übernehmen
         </button>
       </div>
 
-      <button onClick={fetchRandomTokenId} disabled={loading}>
-        {loading ? 'Lädt...' : 'Pick a Winner'}
+      <button onClick={drawWinners} disabled={loading}>
+        {loading ? 'Lädt...' : 'Zufällig 4 NFTs auswählen'}
       </button>
 
-      {lastWinner && (
-        <div className="infoBox">
-          <p>🏆 <strong>Letzter Gewinner</strong>: Token ID <strong>{lastWinner}</strong></p>
-          <p>
-            📦 <a
-              href={`https://polygonscan.com/address/${winnerContractAddress}`}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Smart Contract auf Polygonscan
-            </a>
-          </p>
+      {drawnTokens.length > 0 && (
+        <div className="winners">
+          <h2>Gezogene Gewinner 🎯</h2>
+          {drawnTokens.map((id) => (
+            <iframe
+              key={id}
+              src={`https://rarible.com/token/polygon/${nftContractAddress}:${id}`}
+              style={{ width: "300px", height: "300px", borderRadius: "12px", margin: "10px" }}
+              title={`NFT ${id}`}
+            />
+          ))}
         </div>
       )}
 
-      {tokenId && (
-        <div style={{ marginTop: '2rem' }}>
-          <p>Zufällig gezogene Token ID: <strong>{tokenId}</strong></p>
-          {raribleUrl && (
-            <>
-              <p>
-                <a href={raribleUrl} target="_blank" rel="noopener noreferrer">
-                  NFT auf Rarible ansehen
-                </a>
-              </p>
-              <iframe
-                src={raribleUrl}
-                title="Rarible NFT Viewer"
-                style={{
-                  border: 'none',
-                  width: '100%',
-                  height: '600px',
-                  marginTop: '1rem',
-                  borderRadius: '8px',
-                }}
-              />
-            </>
-          )}
-          {txHash && (
-            <p style={{ marginTop: '1rem' }}>
-              ✅ Gespeichert auf der Blockchain:{" "}
-              <a
-                href={`https://polygonscan.com/tx/${txHash}`}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                {txHash}
-              </a>
-            </p>
-          )}
-        </div>
-      )}
+      <div className="winners">
+        <h2>Alle bisherigen Gewinner 🏆</h2>
+        {winners.length === 0 && <p>Noch keine Gewinner gespeichert.</p>}
+        {winners.map((id) => (
+          <iframe
+            key={id}
+            src={`https://rarible.com/token/polygon/${nftContractAddress}:${id}`}
+            style={{ width: "150px", height: "150px", borderRadius: "8px", margin: "5px" }}
+            title={`Winner ${id}`}
+          />
+        ))}
+      </div>
     </div>
   );
 }
