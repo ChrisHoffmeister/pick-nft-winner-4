@@ -127,7 +127,7 @@ export default function App() {
       alert("Error during draw or save! ❗️");
     }
 
-    setLoading(false);
+    setLoading(false); // Ensure loading is false after the transaction
   };
 
   const progress = availableTokenIds.length > 0
