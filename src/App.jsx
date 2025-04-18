@@ -26,7 +26,6 @@ export default function App() {
   const [txHash, setTxHash] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  // Fetch initial data when the contract address is set
   useEffect(() => {
     const fetchInitialData = async () => {
       try {
@@ -43,26 +42,6 @@ export default function App() {
     };
     fetchInitialData();
   }, [nftContractAddress]);
-
-  const handleContractChange = async () => {
-    setUsedTokenIds([]); // Reset saved winners
-    setAvailableTokenIds([]); // Reset available token IDs
-    setLastWinners([]); // Reset last winners
-    setTokenImages([]); // Reset token images
-    setTxHash(null); // Reset transaction hash
-
-    try {
-      const nftContract = new ethers.Contract(nftContractAddress, nftContractABI, provider);
-      const tokenIds = await nftContract.getTokenIds();
-      setAvailableTokenIds(tokenIds.map(id => id.toString()));
-
-      const winnerContract = new ethers.Contract(winnerContractAddress, winnerRegistryABI, provider);
-      const winners = await winnerContract.getWinners();
-      setUsedTokenIds(winners.map(id => id.toString()));
-    } catch (err) {
-      console.error("Error fetching contract data:", err);
-    }
-  };
 
   const fetchAndStoreWinners = async () => {
     setLoading(true);
@@ -134,7 +113,7 @@ export default function App() {
           style={{ padding: '0.5rem', width: '70%' }}
         />
         <button
-          onClick={handleContractChange}
+          onClick={() => setNftContractAddress(inputAddress)}
           style={{ marginLeft: '1rem', padding: '0.5rem 1rem' }}
         >
           Apply
@@ -159,7 +138,7 @@ export default function App() {
       {/* Last Draw */}
       {lastWinners.length > 0 && (
         <div style={{ marginTop: '2rem' }}>
-          <h2>Last Draw 🎉</h2>
+          <h2>Latest Draw 🎉</h2>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px', justifyContent: 'center' }}>
             {lastWinners.map((id, index) => (
               <div
@@ -194,3 +173,4 @@ export default function App() {
     </div>
   );
 }
+
