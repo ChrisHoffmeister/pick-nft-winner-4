@@ -3,13 +3,16 @@ import { ethers } from 'ethers';
 import './style.css';
 
 // ABIs
-const nftContractABI = ["function getTokenIds() view returns (uint256[])"];
+const nftContractABI = [
+  "function getTokenIds() view returns (uint256[])",
+  "function tokenURI(uint256 tokenId) view returns (string)"
+];
 const winnerRegistryABI = [
   "function lastWinner() view returns (uint256)",
   "function storeWinner(uint256 tokenId) public"
 ];
 
-// Fixe WinnerRegistry-Adresse
+// Konstante WinnerRegistry-Adresse
 const winnerContractAddress = "0x90F39455FA9D79042dDDCcff468882d484F165Cb";
 const provider = new ethers.JsonRpcProvider("https://polygon-rpc.com");
 
@@ -19,8 +22,8 @@ export default function App() {
   const [lastWinner, setLastWinner] = useState(null);
   const [winners, setWinners] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [txHashes, setTxHashes] = useState([]);
   const [usedTokenIds, setUsedTokenIds] = useState([]);
+  const [tokenImages, setTokenImages] = useState([]);
 
   useEffect(() => {
     const fetchLastWinner = async () => {
@@ -39,7 +42,7 @@ export default function App() {
   const fetchRandomWinners = async () => {
     setLoading(true);
     setWinners([]);
-    setTxHashes([]);
+    setTokenImages([]);
 
     try {
       const nftContract = new ethers.Contract(nftContractAddress, nftContractABI, provider);
@@ -67,22 +70,30 @@ export default function App() {
         }
       }
 
-      // Gewinner speichern (Blockchain)
       const signerProvider = new ethers.BrowserProvider(window.ethereum);
       const signer = await signerProvider.getSigner();
       const winnerContract = new ethers.Contract(winnerContractAddress, winnerRegistryABI, signer);
 
-      const newTxHashes = [];
       for (const id of drawn) {
         const tx = await winnerContract.storeWinner(id);
         await tx.wait();
-        newTxHashes.push(tx.hash);
       }
 
       setWinners(drawn);
       setUsedTokenIds(prev => [...prev, ...drawn]);
-      setTxHashes(newTxHashes);
-      setLastWinner(drawn[drawn.length - 1]); // letzter gezogener Gewinner
+      setLastWinner(drawn[drawn.length - 1]);
+
+      // Bilder laden:
+      const images = [];
+      for (const id of drawn) {
+        const uri = await nftContract.tokenURI(id);
+        let url = uri;
+        if (uri.startsWith("ipfs://")) {
+          url = uri.replace("ipfs://", "https://ipfs.io/ipfs/");
+        }
+        images.push(url);
+      }
+      setTokenImages(images);
 
     } catch (error) {
       console.error("Fehler beim Ziehen/Speichern:", error);
@@ -96,7 +107,6 @@ export default function App() {
     <div className="container">
       <h1>Pick 4 Random NFTs</h1>
 
-      {/* NFT-Contract Adresse eingeben */}
       <div style={{ marginBottom: '1rem' }}>
         <input
           type="text"
@@ -134,15 +144,23 @@ export default function App() {
 
       {winners.length > 0 && (
         <div style={{ marginTop: '2rem' }}>
-          <h2>Gezogene Gewinner 🎉</h2>
-          {winners.map((id, index) => (
-            <div key={index} style={{ marginTop: '1rem', padding: '1rem', background: '#f3f3f3', borderRadius: '10px' }}>
-              <p>Token ID: <strong>{id}</strong></p>
-              {txHashes[index] && (
-                <p>✅ Gespeichert: <a href={`https://polygonscan.com/tx/${txHashes[index]}`} target="_blank" rel="noopener noreferrer">{txHashes[index]}</a></p>
-              )}
-            </div>
-          ))}
+          <h2>Zufällig gezogene Token IDs 🎯</h2>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px' }}>
+            {winners.map((id, index) => (
+              <div key={index} style={{ width: '200px', textAlign: 'center' }}>
+                <p>Token ID: <strong>{id}</strong></p>
+                {tokenImages[index] ? (
+                  <img
+                    src={tokenImages[index]}
+                    alt={`NFT ${id}`}
+                    style={{ width: '100%', borderRadius: '10px' }}
+                  />
+                ) : (
+                  <p>Bild nicht verfügbar 🖼️</p>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>
