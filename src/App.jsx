@@ -15,7 +15,6 @@ const nftContractABI = [
   "function tokenURI(uint256 tokenId) view returns (string)"
 ];
 
-// Smart Contracts
 const winnerContractAddress = "0xE0aA2Ffb185d39C9D3F1CA6a0239EFeC9E151B27";
 const provider = new ethers.JsonRpcProvider("https://polygon-rpc.com");
 
@@ -215,8 +214,52 @@ export default function App() {
   const progress = availableTokenIds.length > 0 ? (usedTokenIds.length / availableTokenIds.length) * 100 : 0;
 
   return (
-    <div className="container">
-      {/* Deine UI-Struktur kommt hier hin (Input, Buttons, Winners anzeigen) */}
+    <div className="container" style={{ padding: '20px', maxWidth: '800px', margin: '0 auto' }}>
+      <h1>PadelDraw - Pick Winners</h1>
+      <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
+        <input
+          type="text"
+          value={inputAddress}
+          onChange={(e) => setInputAddress(e.target.value)}
+          placeholder="Enter NFT Contract Address"
+          style={{ flexGrow: 1, padding: '10px' }}
+        />
+        <button onClick={applyContract} style={{ padding: '10px' }}>Apply</button>
+      </div>
+      <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
+        <button onClick={drawWinners} disabled={loading || !nftContractAddress} style={{ padding: '10px' }}>
+          {loading ? 'Loading...' : 'Pick 4 Winners'}
+        </button>
+        {currentUser.toLowerCase() === ownerAddress && (
+          <button onClick={resetWinners} style={{ padding: '10px', backgroundColor: '#f44336', color: '#fff' }}>
+            Reset Winners
+          </button>
+        )}
+      </div>
+      <div>
+        <p>Winners saved: {usedTokenIds.length} / {availableTokenIds.length}</p>
+        <div style={{ background: '#ddd', height: '10px', borderRadius: '5px', overflow: 'hidden', marginBottom: '10px' }}>
+          <div style={{ background: '#4caf50', width: `${progress}%`, height: '10px' }} />
+        </div>
+        <p>{progress.toFixed(0)}% drawn</p>
+      </div>
+      {drawHistory.map((round, index) => (
+        <div key={index} style={{ marginTop: '20px' }}>
+          <h2>Round {index + 1}</h2>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px' }}>
+            {round.map((id) => (
+              <div key={id} style={{ width: '150px', textAlign: 'center' }}>
+                <p><strong>ID {id}</strong></p>
+                {tokenImages[id] ? (
+                  <img src={tokenImages[id]} alt={`NFT ${id}`} style={{ width: '100%', borderRadius: '10px' }} />
+                ) : (
+                  <p>Loading image...</p>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
