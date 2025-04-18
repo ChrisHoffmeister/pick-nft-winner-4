@@ -92,6 +92,11 @@ function App() {
       return;
     }
 
+    if (!walletConnected) {
+      alert("Bitte Wallet verbinden, um fortzufahren.");
+      return;
+    }
+
     try {
       setStatus("Wähle 4 Gewinner...");
       const winners = pickWinners(allTokenIds, 4);
@@ -160,4 +165,4 @@ function App() {
   );
 }
 
-
+export default App;
