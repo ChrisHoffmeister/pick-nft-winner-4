@@ -19,6 +19,7 @@ function App() {
   const [status, setStatus] = useState("");
   const [progress, setProgress] = useState(0);
 
+  // Funktion zum Wallet verbinden
   const connectWallet = async () => {
     if (!window.ethereum) {
       alert("Bitte installiere MetaMask.");
@@ -159,4 +160,4 @@ function App() {
   );
 }
 
-export default App;
+
