@@ -50,6 +50,7 @@ export default function App() {
     setTxHash(null);
 
     try {
+      // Filter available tokens to avoid used ones
       const filteredTokens = availableTokenIds.filter(id => !usedTokenIds.includes(id));
       if (filteredTokens.length < 4) {
         alert("Not enough available NFTs to draw! ❌");
@@ -75,6 +76,7 @@ export default function App() {
       await tx.wait();
       setTxHash(tx.hash);
 
+      // Update last winners and used token ids
       setLastWinners(selected);
       setUsedTokenIds(prev => [...prev, ...selected]);
 
