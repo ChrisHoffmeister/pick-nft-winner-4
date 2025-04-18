@@ -54,9 +54,10 @@ export default function App() {
     setTxHash(null);
 
     try {
-      // Filter out the already used token IDs to ensure no duplicates
+      // Filter out the used token IDs
       const filteredTokens = availableTokenIds.filter(id => !usedTokenIds.includes(id));
-
+      
+      // Check if there are enough tokens to draw
       if (filteredTokens.length < 4) {
         alert("Not enough available NFTs to draw! ❌");
         setLoading(false);
@@ -72,6 +73,7 @@ export default function App() {
         }
       }
 
+      // Store the winners on the blockchain
       const signerProvider = new ethers.BrowserProvider(window.ethereum);
       await signerProvider.send("eth_requestAccounts", []);
       const signer = await signerProvider.getSigner();
@@ -81,10 +83,11 @@ export default function App() {
       await tx.wait();
       setTxHash(tx.hash);
 
+      // Update state with the new winners and mark them as used
       setLastWinners(selected);
       setUsedTokenIds(prev => [...prev, ...selected]);
 
-      // Fetch token images
+      // Fetch token images for the winners
       const nftContract = new ethers.Contract(nftContractAddress, nftContractABI, provider);
       const images = [];
       for (const id of selected) {
