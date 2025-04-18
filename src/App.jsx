@@ -1,88 +1,95 @@
-import { useState, useEffect } from 'react';
-import { ethers } from 'ethers';
-import './style.css';
+import { useState, useEffect } from "react";
+import { ethers } from "ethers";
+import "./style.css";
 
-// Smart Contract Adressen
-const winnerContractAddress = "0x5884711d09B97fb4F519ABd0910d77914FFa9730"; // neuer WinnerDraw3me Contract
+// WinnerDraw3me Contract (FIX)
+const winnerContractAddress = "0x5884711d09B97fb4F519ABd0910d77914FFa9730";
+const winnerABI = [
+  "function storeWinners(uint256[] calldata tokenIds) public",
+  "function getWinners() public view returns (uint256[])"
+];
+
+// NFT ABI (für getTokenIds)
+const nftABI = ["function getTokenIds() view returns (uint256[])"];
+
 const provider = new ethers.JsonRpcProvider("https://polygon-rpc.com");
 
-// ABIs
-const nftContractABI = [
-  "function getTokenIds() view returns (uint256[])"
-];
-
-const winnerDrawABI = [
-  "function getWinners() view returns (uint256[])",
-  "function storeWinners(uint256[] calldata tokenIds) public"
-];
-
 export default function App() {
-  const [loading, setLoading] = useState(false);
   const [inputAddress, setInputAddress] = useState("");
-  const [nftContractAddress, setNftContractAddress] = useState("0x01F170967F1Ec9088c169b20e57a2Eb8A4352cd3");
+  const [nftContractAddress, setNftContractAddress] = useState("");
   const [winners, setWinners] = useState([]);
-  const [txHash, setTxHash] = useState(null);
+  const [loading, setLoading] = useState(false);
 
+  // Aktuelle Gewinner laden
   useEffect(() => {
+    const fetchWinners = async () => {
+      try {
+        const contract = new ethers.Contract(winnerContractAddress, winnerABI, provider);
+        const storedWinners = await contract.getWinners();
+        setWinners(storedWinners.map((id) => id.toString()));
+      } catch (err) {
+        console.error("Fehler beim Abrufen der Gewinner:", err);
+      }
+    };
     fetchWinners();
   }, []);
 
-  const fetchWinners = async () => {
-    try {
-      const contract = new ethers.Contract(winnerContractAddress, winnerDrawABI, provider);
-      const fetchedWinners = await contract.getWinners();
-      setWinners(fetchedWinners.map(id => id.toString()));
-    } catch (err) {
-      console.error("Fehler beim Abrufen der Gewinner:", err);
+  const handleDrawWinners = async () => {
+    if (!nftContractAddress) {
+      alert("Bitte eine NFT-Contract-Adresse eingeben!");
+      return;
     }
-  };
 
-  const fetchAndStoreWinners = async () => {
     setLoading(true);
-    setTxHash(null);
 
     try {
-      const nftContract = new ethers.Contract(nftContractAddress, nftContractABI, provider);
-      const tokenIds = await nftContract.getTokenIds();
+      const nftContract = new ethers.Contract(nftContractAddress, nftABI, provider);
+      let tokenIds = await nftContract.getTokenIds();
 
-      const winnerContract = new ethers.Contract(winnerContractAddress, winnerDrawABI, provider);
-      const alreadyWon = await winnerContract.getWinners();
-      const alreadyWonIds = alreadyWon.map(id => id.toString());
-
-      const availableTokenIds = tokenIds
-        .map(id => id.toString())
-        .filter(id => !alreadyWonIds.includes(id));
-
-      if (availableTokenIds.length < 4) {
-        alert("Nicht genug verfügbare NFTs zum Ziehen! 🛑");
+      if (tokenIds.length < 4) {
+        alert("Nicht genug Token vorhanden!");
         setLoading(false);
         return;
       }
 
+      // Filter: nur IDs, die noch nicht gewonnen haben
+      const contract = new ethers.Contract(winnerContractAddress, winnerABI, provider);
+      const storedWinners = await contract.getWinners();
+      const alreadyWon = storedWinners.map(id => id.toString());
+
+      let availableTokens = tokenIds.map(id => id.toString()).filter(id => !alreadyWon.includes(id));
+
+      if (availableTokens.length < 4) {
+        alert("Nicht genug ungezogene Token verfügbar!");
+        setLoading(false);
+        return;
+      }
+
+      // 4 eindeutige zufällige IDs ziehen
       const selected = [];
       while (selected.length < 4) {
-        const randomIndex = Math.floor(Math.random() * availableTokenIds.length);
-        const randomTokenId = availableTokenIds[randomIndex];
-        if (!selected.includes(randomTokenId)) {
-          selected.push(randomTokenId);
-        }
+        const randomIndex = Math.floor(Math.random() * availableTokens.length);
+        selected.push(availableTokens[randomIndex]);
+        availableTokens.splice(randomIndex, 1);
       }
 
       console.log("Gezogene Token IDs:", selected);
 
-      // Sende Transaktion
+      // Blockchain speichern (Transaktion über MetaMask)
       const signerProvider = new ethers.BrowserProvider(window.ethereum);
+      await signerProvider.send("eth_requestAccounts", []); // MetaMask Verbindung
       const signer = await signerProvider.getSigner();
-      const winnerWriteContract = new ethers.Contract(winnerContractAddress, winnerDrawABI, signer);
+      const winnerContract = new ethers.Contract(winnerContractAddress, winnerABI, signer);
 
-      const tx = await winnerWriteContract.storeWinners(selected);
+      const tx = await winnerContract.storeWinners(selected);
       await tx.wait();
-      setTxHash(tx.hash);
 
-      await fetchWinners(); // Liste neu laden
+      alert("Gewinner erfolgreich gespeichert ✅");
 
-    } catch (err) {
-      console.error("Fehler beim Ziehen/Speichern:", err);
+      setWinners(prev => [...prev, ...selected]);
+    } catch (error) {
+      console.error("Fehler beim Ziehen/Speichern:", error);
+      alert("Fehler beim Ziehen oder Speichern");
     }
 
     setLoading(false);
@@ -98,58 +105,40 @@ export default function App() {
           placeholder="NFT-Contract-Adresse eingeben"
           value={inputAddress}
           onChange={(e) => setInputAddress(e.target.value)}
-          style={{ padding: '0.5rem', width: '70%' }}
+          style={{ padding: "0.5rem", width: "70%" }}
         />
         <button
           onClick={() => setNftContractAddress(inputAddress)}
-          style={{ marginLeft: '1rem', padding: '0.5rem 1rem' }}
+          style={{ marginLeft: "1rem", padding: "0.5rem 1rem" }}
         >
           Übernehmen
         </button>
       </div>
 
-      <button onClick={fetchAndStoreWinners} disabled={loading}>
-        {loading ? 'Lädt...' : 'Ziehe 4 Gewinner'}
+      <button onClick={handleDrawWinners} disabled={loading || !nftContractAddress}>
+        {loading ? "Lädt..." : "Ziehe 4 Gewinner"}
       </button>
 
-      {txHash && (
-        <p style={{ marginTop: '1rem' }}>
-          ✅ Transaktion gespeichert:{" "}
-          <a
-            href={`https://polygonscan.com/tx/${txHash}`}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            {txHash}
-          </a>
-        </p>
-      )}
+      <h2 style={{ marginTop: "2rem" }}>Aktuelle Gewinner 🎉</h2>
 
-      <div style={{ marginTop: '2rem' }}>
-        <h2>Aktuelle Gewinner 🎉</h2>
-        {winners.length > 0 ? (
-          <ul style={{ listStyle: 'none', padding: 0 }}>
-            {winners.map((id, idx) => (
-              <li key={idx}>
-                Token ID: <strong>{id}</strong> <br />
-                <iframe
-                  src={`https://rarible.com/token/polygon/${nftContractAddress}:${id}`}
-                  title={`NFT ${id}`}
-                  style={{
-                    border: 'none',
-                    width: '300px',
-                    height: '300px',
-                    marginTop: '0.5rem',
-                    borderRadius: '8px',
-                  }}
-                />
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p>Keine Gewinner bisher gespeichert 🚫</p>
-        )}
-      </div>
+      {winners.length === 0 && <p>Keine Gewinner gespeichert.</p>}
+
+      {winners.map((winnerId, idx) => (
+        <div key={idx} style={{ margin: "2rem 0" }}>
+          <p>Token ID: <strong>{winnerId}</strong></p>
+          <iframe
+            src={`https://rarible.com/token/polygon/${nftContractAddress}:${winnerId}`}
+            title={`NFT ${winnerId}`}
+            style={{
+              border: "none",
+              width: "300px",
+              height: "300px",
+              borderRadius: "10px",
+              marginTop: "0.5rem",
+            }}
+          />
+        </div>
+      ))}
     </div>
   );
 }
