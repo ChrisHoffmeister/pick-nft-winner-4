@@ -152,39 +152,17 @@ export default function App() {
         </p>
       )}
 
-      {/* Winner Cards */}
+      {/* Winner IDs List */}
       {lastWinners.length > 0 && (
         <div style={{ marginTop: '2rem' }}>
           <h2>Winners 🎉</h2>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px', justifyContent: 'center' }}>
+          <ul style={{ listStyleType: 'none', padding: '0', textAlign: 'center' }}>
             {lastWinners.map((id, index) => (
-              <div
-                key={index}
-                style={{
-                  width: '220px',
-                  textAlign: 'center',
-                  background: '#f9f9f9',
-                  padding: '1rem',
-                  borderRadius: '10px',
-                  boxShadow: '0 4px 8px rgba(0, 0, 0, 0.1)',
-                  transition: 'transform 0.3s',
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.transform = "scale(1.05)"}
-                onMouseLeave={(e) => e.currentTarget.style.transform = "scale(1)"}
-              >
-                <p><strong>Token ID: {id}</strong></p>
-                {tokenImages[index] ? (
-                  <img
-                    src={tokenImages[index]}
-                    alt={`NFT ${id}`}
-                    style={{ width: '100%', borderRadius: '8px', marginTop: '0.5rem' }}
-                  />
-                ) : (
-                  <p>No image available 🖼️</p>
-                )}
-              </div>
+              <li key={index} style={{ fontSize: '18px', marginBottom: '10px' }}>
+                Token ID: {id}
+              </li>
             ))}
-          </div>
+          </ul>
         </div>
       )}
     </div>
