@@ -12,31 +12,36 @@ const winnerRegistryABI = [
   "function storeWinners(uint256[] calldata tokenIds) public"
 ];
 
-// Fester WinnerDraw3me Contract
+// Winner Contract (Fixed)
 const winnerContractAddress = "0x5884711d09B97fb4F519ABd0910d77914FFa9730";
 const provider = new ethers.JsonRpcProvider("https://polygon-rpc.com");
 
 export default function App() {
   const [nftContractAddress, setNftContractAddress] = useState("0x01F170967F1Ec9088c169b20e57a2Eb8A4352cd3");
   const [inputAddress, setInputAddress] = useState("");
-  const [lastWinners, setLastWinners] = useState([]);
-  const [loading, setLoading] = useState(false);
   const [usedTokenIds, setUsedTokenIds] = useState([]);
+  const [availableTokenIds, setAvailableTokenIds] = useState([]);
+  const [lastWinners, setLastWinners] = useState([]);
   const [tokenImages, setTokenImages] = useState([]);
   const [txHash, setTxHash] = useState(null);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const fetchStoredWinners = async () => {
+    const fetchInitialData = async () => {
       try {
-        const contract = new ethers.Contract(winnerContractAddress, winnerRegistryABI, provider);
-        const winners = await contract.getWinners();
+        const winnerContract = new ethers.Contract(winnerContractAddress, winnerRegistryABI, provider);
+        const winners = await winnerContract.getWinners();
         setUsedTokenIds(winners.map(id => id.toString()));
+
+        const nftContract = new ethers.Contract(nftContractAddress, nftContractABI, provider);
+        const tokenIds = await nftContract.getTokenIds();
+        setAvailableTokenIds(tokenIds.map(id => id.toString()));
       } catch (err) {
-        console.error("Fehler beim Abrufen der gespeicherten Gewinner:", err);
+        console.error("Error loading initial data:", err);
       }
     };
-    fetchStoredWinners();
-  }, []);
+    fetchInitialData();
+  }, [nftContractAddress]);
 
   const fetchAndStoreWinners = async () => {
     setLoading(true);
@@ -45,31 +50,24 @@ export default function App() {
     setTxHash(null);
 
     try {
-      const nftContract = new ethers.Contract(nftContractAddress, nftContractABI, provider);
-      const tokenIds = await nftContract.getTokenIds();
-
-      const availableTokenIds = tokenIds
-        .map(id => id.toString())
-        .filter(id => !usedTokenIds.includes(id));
-
-      if (availableTokenIds.length < 4) {
-        alert("Nicht genügend freie NFTs zum Ziehen! ❌");
+      const filteredTokens = availableTokenIds.filter(id => !usedTokenIds.includes(id));
+      if (filteredTokens.length < 4) {
+        alert("Not enough available NFTs to draw! ❌");
         setLoading(false);
         return;
       }
 
       const selected = [];
       while (selected.length < 4) {
-        const randomIndex = Math.floor(Math.random() * availableTokenIds.length);
-        const randomTokenId = availableTokenIds[randomIndex];
+        const randomIndex = Math.floor(Math.random() * filteredTokens.length);
+        const randomTokenId = filteredTokens[randomIndex];
         if (!selected.includes(randomTokenId)) {
           selected.push(randomTokenId);
         }
       }
 
-      // ➡️ Jetzt EINMAL storeWinners aufrufen mit den 4 IDs:
       const signerProvider = new ethers.BrowserProvider(window.ethereum);
-      await signerProvider.send("eth_requestAccounts", []); // MetaMask öffnen
+      await signerProvider.send("eth_requestAccounts", []);
       const signer = await signerProvider.getSigner();
       const winnerContract = new ethers.Contract(winnerContractAddress, winnerRegistryABI, signer);
 
@@ -80,7 +78,8 @@ export default function App() {
       setLastWinners(selected);
       setUsedTokenIds(prev => [...prev, ...selected]);
 
-      // Bilder laden
+      // Fetch token images
+      const nftContract = new ethers.Contract(nftContractAddress, nftContractABI, provider);
       const images = [];
       for (const id of selected) {
         const uri = await nftContract.tokenURI(id);
@@ -93,22 +92,26 @@ export default function App() {
       setTokenImages(images);
 
     } catch (error) {
-      console.error("Fehler beim Ziehen/Speichern:", error);
-      alert("Fehler beim Ziehen oder Speichern ❗️");
+      console.error("Error during draw/save:", error);
+      alert("Error during draw or save! ❗️");
     }
 
     setLoading(false);
   };
 
+  const progress = availableTokenIds.length > 0
+    ? Math.round((usedTokenIds.length / availableTokenIds.length) * 100)
+    : 0;
+
   return (
     <div className="container">
-      <h1>Pick 4 Random NFTs</h1>
+      <h1>Pick 4 Random NFTs 🎯</h1>
 
-      {/* NFT-Contract Adresse */}
+      {/* NFT Contract Address */}
       <div style={{ marginBottom: '1rem' }}>
         <input
           type="text"
-          placeholder="NFT-Contract-Adresse eingeben"
+          placeholder="Enter NFT Contract Address"
           value={inputAddress}
           onChange={(e) => setInputAddress(e.target.value)}
           style={{ padding: '0.5rem', width: '70%' }}
@@ -117,33 +120,59 @@ export default function App() {
           onClick={() => setNftContractAddress(inputAddress)}
           style={{ marginLeft: '1rem', padding: '0.5rem 1rem' }}
         >
-          Übernehmen
+          Apply
         </button>
       </div>
 
-      {/* Ziehen Button */}
+      {/* Draw Button */}
       <button onClick={fetchAndStoreWinners} disabled={loading || !nftContractAddress}>
-        {loading ? 'Lädt...' : 'Ziehe 4 Gewinner'}
+        {loading ? 'Loading...' : 'Pick 4 Winners'}
       </button>
 
-      {/* Blockchain Bestätigung */}
+      {/* Progress Bar */}
+      <div style={{ marginTop: "1rem" }}>
+        <p><strong>Winners saved:</strong> {usedTokenIds.length} / {availableTokenIds.length}</p>
+        <div style={{ background: "#eee", height: "10px", borderRadius: "5px", overflow: "hidden" }}>
+          <div style={{
+            background: "#00b894",
+            width: `${progress}%`,
+            height: "100%"
+          }} />
+        </div>
+        <p style={{ marginTop: "0.5rem" }}>{progress}% drawn</p>
+      </div>
+
+      {/* Transaction Info */}
       {txHash && (
         <p style={{ marginTop: '1rem' }}>
-          ✅ Gespeichert auf Blockchain:{" "}
+          ✅ Transaction saved:{" "}
           <a href={`https://polygonscan.com/tx/${txHash}`} target="_blank" rel="noopener noreferrer">
             {txHash.slice(0, 8)}...{txHash.slice(-6)}
           </a>
         </p>
       )}
 
-      {/* Gewinneranzeige */}
+      {/* Winner Cards */}
       {lastWinners.length > 0 && (
         <div style={{ marginTop: '2rem' }}>
-          <h2>Gezogene Gewinner 🎉</h2>
+          <h2>Winners 🎉</h2>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px', justifyContent: 'center' }}>
             {lastWinners.map((id, index) => (
-              <div key={index} style={{ width: '220px', textAlign: 'center', background: '#fafafa', padding: '1rem', borderRadius: '10px' }}>
-                <p>Token ID: <strong>{id}</strong></p>
+              <div
+                key={index}
+                style={{
+                  width: '220px',
+                  textAlign: 'center',
+                  background: '#f9f9f9',
+                  padding: '1rem',
+                  borderRadius: '10px',
+                  boxShadow: '0 4px 8px rgba(0, 0, 0, 0.1)',
+                  transition: 'transform 0.3s',
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.transform = "scale(1.05)"}
+                onMouseLeave={(e) => e.currentTarget.style.transform = "scale(1)"}
+              >
+                <p><strong>Token ID: {id}</strong></p>
                 {tokenImages[index] ? (
                   <img
                     src={tokenImages[index]}
@@ -151,7 +180,7 @@ export default function App() {
                     style={{ width: '100%', borderRadius: '8px', marginTop: '0.5rem' }}
                   />
                 ) : (
-                  <p>Bild nicht verfügbar 🖼️</p>
+                  <p>No image available 🖼️</p>
                 )}
               </div>
             ))}
