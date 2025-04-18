@@ -1,111 +1,100 @@
-import { useState } from 'react';
-import { ethers } from 'ethers';
-import './style.css';
+import { useState } from "react";
+import { ethers } from "ethers";
+import { pickWinners } from "../api/pick-winner"; // Importiere deine Pick-Funktion
+import contractAbi from "./contractAbi.json"; // Dein Smart Contract ABI
+import "./style.css"; // Falls du Styling hast
 
-const winnerRegistryABI = [
-  "function getWinners(address nftContract) view returns (uint256[])",
-  "function storeWinners(address nftContract, uint256[] calldata tokenIds) public",
-  "function resetWinners(address nftContract) public",
-  "function owner() view returns (address)"
-];
+const PADEL_DRAW_CONTRACT_ADDRESS = "0xE0aA2Ffb185d39C9D3F1CA6a0239EFeC9E151B27";
 
-const nftContractABI = [
-  "function getTokenIds() view returns (uint256[])",
-  "function tokenURI(uint256 tokenId) view returns (string)"
-];
-
-const winnerContractAddress = "0xE0aA2Ffb185d39C9D3F1CA6a0239EFeC9E151B27";
-const provider = new ethers.JsonRpcProvider("https://polygon-rpc.com");
-
-export default function App() {
+function App() {
+  const [walletConnected, setWalletConnected] = useState(false);
+  const [provider, setProvider] = useState(null);
+  const [signer, setSigner] = useState(null);
+  const [contract, setContract] = useState(null);
   const [nftContractAddress, setNftContractAddress] = useState("");
-  const [inputAddress, setInputAddress] = useState("");
-  const [availableTokenIds, setAvailableTokenIds] = useState([]);
-  const [usedTokenIds, setUsedTokenIds] = useState([]);
+  const [status, setStatus] = useState("");
 
-  const applyContract = async () => {
-    const address = inputAddress.trim();
-
-    if (address.length !== 42 || !address.startsWith('0x')) {
-      alert("Ungültige NFT-Adresse.");
+  const connectWallet = async () => {
+    if (!window.ethereum) {
+      alert("Bitte MetaMask installieren.");
       return;
     }
 
-    setNftContractAddress(address);
-
     try {
-      const nftContract = new ethers.Contract(address, nftContractABI, provider);
-      const tokenIds = await nftContract.getTokenIds();
+      const newProvider = new ethers.providers.Web3Provider(window.ethereum);
+      await newProvider.send("eth_requestAccounts", []);
+      const newSigner = newProvider.getSigner();
+      const newContract = new ethers.Contract(PADEL_DRAW_CONTRACT_ADDRESS, contractAbi, newSigner);
 
-      if (!tokenIds || tokenIds.length === 0) {
-        alert("Keine Token IDs gefunden.");
-        return;
-      }
-
-      setAvailableTokenIds(tokenIds.map(id => id.toString()));
+      setProvider(newProvider);
+      setSigner(newSigner);
+      setContract(newContract);
+      setWalletConnected(true);
+      setStatus("Wallet verbunden!");
     } catch (err) {
       console.error(err);
-      alert("Fehler beim Laden der Token IDs.");
+      setStatus("Fehler beim Verbinden.");
     }
   };
 
-  const pickWinners = async () => {
-    if (availableTokenIds.length < 4) {
-      alert("Nicht genug NFTs vorhanden.");
+  const handlePickWinners = async () => {
+    if (!contract) {
+      alert("Contract nicht verbunden.");
+      return;
+    }
+    if (!nftContractAddress) {
+      alert("Bitte NFT-Contract-Adresse eingeben!");
       return;
     }
 
-    const remaining = availableTokenIds.filter(id => !usedTokenIds.includes(id));
-    const selected = [];
-
-    while (selected.length < 4) {
-      const randomIndex = Math.floor(Math.random() * remaining.length);
-      const id = remaining[randomIndex];
-      if (!selected.includes(id)) {
-        selected.push(id);
-      }
-    }
-
     try {
-      const signerProvider = new ethers.BrowserProvider(window.ethereum);
-      const signer = await signerProvider.getSigner();
-      const winnerContract = new ethers.Contract(winnerContractAddress, winnerRegistryABI, signer);
+      setStatus("Ziehe Gewinner...");
 
-      const tx = await winnerContract.storeWinners(nftContractAddress, selected);
+      // Beispiel: Token-IDs 1 bis 100 simulieren
+      const allTokenIds = Array.from({ length: 100 }, (_, i) => i + 1);
+
+      // 4 zufällige Gewinner auswählen
+      const winners = pickWinners(allTokenIds, 4);
+      console.log("Gezogene Gewinner:", winners);
+
+      setStatus("Sende Gewinner auf die Blockchain...");
+
+      // Transaction an den PadelDraw Contract senden
+      const tx = await contract.storeWinners(nftContractAddress, winners);
       await tx.wait();
 
-      setUsedTokenIds(prev => [...prev, ...selected]);
-      alert("4 Gewinner erfolgreich gespeichert!");
+      setStatus(`Erfolg! Gewinner gespeichert: ${winners.join(", ")}`);
     } catch (err) {
       console.error(err);
-      alert("Fehler beim Speichern der Gewinner.");
+      setStatus("Fehler beim Speichern der Gewinner.");
     }
   };
 
   return (
-    <div className="container">
+    <div className="App">
       <h1>PadelDraw</h1>
 
-      <div className="addressInput">
-        <input
-          value={inputAddress}
-          onChange={(e) => setInputAddress(e.target.value)}
-          placeholder="NFT Contract Address"
-        />
-        <button onClick={applyContract}>Apply</button>
-      </div>
-
-      <button onClick={pickWinners} disabled={availableTokenIds.length === 0}>
-        Pick 4 Winners
-      </button>
-
-      <div className="winners">
-        {usedTokenIds.map(id => (
-          <div key={id} style={{ margin: '10px' }}>
-            <p><b>ID: {id}</b></p>
+      {!walletConnected ? (
+        <button onClick={connectWallet}>Wallet verbinden</button>
+      ) : (
+        <>
+          <div style={{ margin: "20px 0" }}>
+            <input
+              type="text"
+              placeholder="NFT Contract Adresse eingeben"
+              value={nftContractAddress}
+              onChange={(e) => setNftContractAddress(e.target.value)}
+              style={{ width: "300px", padding: "8px" }}
+            />
+            <button onClick={handlePickWinners} style={{ marginLeft: "10px" }}>
+              Pick 4 Winners
+            </button>
           </div>
-        ))}
-      </div>
+          <p>Status: {status}</p>
+        </>
+      )}
     </div>
   );
 }
+
+export default App;
