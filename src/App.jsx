@@ -26,7 +26,6 @@ export default function App() {
   const [tokenImages, setTokenImages] = useState([]);
   const [txHash, setTxHash] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [drawNumber, setDrawNumber] = useState(1); // Track the draw number
 
   // Fetch initial data when the contract address is set
   useEffect(() => {
@@ -54,7 +53,6 @@ export default function App() {
     setAllWinners([]); // Reset all winners
     setTokenImages([]); // Reset token images
     setTxHash(null); // Reset transaction hash
-    setDrawNumber(1); // Reset the draw number to 1
 
     // Now fetch data for the new contract
     try {
@@ -104,10 +102,9 @@ export default function App() {
 
       setLastWinners(selected);
       setUsedTokenIds(prev => [...prev, ...selected]);
-      setAllWinners(prev => [...selected, ...prev]); // Add new winners to the top
 
-      // Increment the draw number
-      setDrawNumber(prev => prev + 1);
+      // Add the new winners to the allWinners array
+      setAllWinners(prev => [...prev, ...selected]);
 
       // Fetch token images
       const nftContract = new ethers.Contract(nftContractAddress, nftContractABI, provider);
@@ -127,7 +124,7 @@ export default function App() {
       alert("Error during draw or save! ❗️");
     }
 
-    setLoading(false); // Ensure loading is false after the transaction
+    setLoading(false);
   };
 
   const progress = availableTokenIds.length > 0
@@ -187,18 +184,13 @@ export default function App() {
       {allWinners.length > 0 && (
         <div style={{ marginTop: '2rem' }}>
           <h2>Winners 🎉</h2>
-          {allWinners.map((winners, index) => (
-            <div key={index} style={{ marginBottom: '20px' }}>
-              <h3>Draw {drawNumber - index}</h3> {/* Draw number */}
-              <ul style={{ listStyleType: 'none', padding: '0', textAlign: 'center' }}>
-                {winners.map((id, idx) => (
-                  <li key={idx} style={{ fontSize: '18px', marginBottom: '10px' }}>
-                    Token ID: {id}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
+          <ul style={{ listStyleType: 'none', padding: '0', textAlign: 'center' }}>
+            {allWinners.map((id, index) => (
+              <li key={index} style={{ fontSize: '18px', marginBottom: '10px' }}>
+                Token ID: {id}
+              </li>
+            ))}
+          </ul>
         </div>
       )}
     </div>
