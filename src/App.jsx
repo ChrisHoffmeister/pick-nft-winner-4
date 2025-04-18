@@ -26,6 +26,7 @@ export default function App() {
   const [txHash, setTxHash] = useState(null);
   const [loading, setLoading] = useState(false);
 
+  // Fetch initial data when the contract address is set
   useEffect(() => {
     const fetchInitialData = async () => {
       try {
@@ -42,6 +43,26 @@ export default function App() {
     };
     fetchInitialData();
   }, [nftContractAddress]);
+
+  const handleContractChange = async () => {
+    setUsedTokenIds([]); // Reset saved winners
+    setAvailableTokenIds([]); // Reset available token IDs
+    setLastWinners([]); // Reset last winners
+    setTokenImages([]); // Reset token images
+    setTxHash(null); // Reset transaction hash
+
+    try {
+      const nftContract = new ethers.Contract(nftContractAddress, nftContractABI, provider);
+      const tokenIds = await nftContract.getTokenIds();
+      setAvailableTokenIds(tokenIds.map(id => id.toString()));
+
+      const winnerContract = new ethers.Contract(winnerContractAddress, winnerRegistryABI, provider);
+      const winners = await winnerContract.getWinners();
+      setUsedTokenIds(winners.map(id => id.toString()));
+    } catch (err) {
+      console.error("Error fetching contract data:", err);
+    }
+  };
 
   const fetchAndStoreWinners = async () => {
     setLoading(true);
@@ -99,10 +120,6 @@ export default function App() {
     setLoading(false);
   };
 
-  const progress = availableTokenIds.length > 0
-    ? Math.round((usedTokenIds.length / availableTokenIds.length) * 100)
-    : 0;
-
   return (
     <div className="container">
       <h1>Pick 4 Random NFTs 🎯</h1>
@@ -117,7 +134,7 @@ export default function App() {
           style={{ padding: '0.5rem', width: '70%' }}
         />
         <button
-          onClick={() => setNftContractAddress(inputAddress)}
+          onClick={handleContractChange}
           style={{ marginLeft: '1rem', padding: '0.5rem 1rem' }}
         >
           Apply
@@ -129,19 +146,6 @@ export default function App() {
         {loading ? 'Loading...' : 'Pick 4 Winners'}
       </button>
 
-      {/* Progress Bar */}
-      <div style={{ marginTop: "1rem" }}>
-        <p><strong>Winners saved:</strong> {usedTokenIds.length} / {availableTokenIds.length}</p>
-        <div style={{ background: "#eee", height: "10px", borderRadius: "5px", overflow: "hidden" }}>
-          <div style={{
-            background: "#00b894",
-            width: `${progress}%`,
-            height: "100%"
-          }} />
-        </div>
-        <p style={{ marginTop: "0.5rem" }}>{progress}% drawn</p>
-      </div>
-
       {/* Transaction Info */}
       {txHash && (
         <p style={{ marginTop: '1rem' }}>
@@ -152,10 +156,10 @@ export default function App() {
         </p>
       )}
 
-      {/* Winner Cards */}
+      {/* Last Draw */}
       {lastWinners.length > 0 && (
         <div style={{ marginTop: '2rem' }}>
-          <h2>Winners 🎉</h2>
+          <h2>Last Draw 🎉</h2>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px', justifyContent: 'center' }}>
             {lastWinners.map((id, index) => (
               <div
