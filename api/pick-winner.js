@@ -1,39 +1,38 @@
-import { ethers } from "ethers";
+import { ethers } from 'ethers';
 
-const WINNER_CONTRACT = "0xA7Fa8C1F83cf415A4fAe7b8ba094EdB7b5Ef3E22";
-const abi = [
-  "function storeWinner(uint256 tokenId) public"
+const winnerContractAddress = "0x5884711d09B97fb4F519ABd0910d77914FFa9730"; // Dein WinnerDraw3me Contract
+
+const winnerContractABI = [
+  "function storeWinners(uint256[] calldata tokenIds) public",
+  "function getWinners() public view returns (uint256[])",
+  "function hasAlreadyWon(uint256 tokenId) public view returns (bool)",
 ];
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: "Only POST allowed" });
+    res.status(405).json({ error: 'Nur POST erlaubt' });
+    return;
   }
 
-  const { winnerId } = req.body;
+  const { tokenIds } = req.body;
 
-  if (!winnerId && winnerId !== 0) {
-    return res.status(400).json({ error: "Missing winnerId" });
+  if (!Array.isArray(tokenIds) || tokenIds.length === 0) {
+    res.status(400).json({ error: 'tokenIds ist erforderlich' });
+    return;
   }
 
   try {
-    // 1. Signer vorbereiten – PRIVATE KEY aus ENV
-    const privateKey = process.env.SERVER_PRIVATE_KEY;
-    if (!privateKey) {
-      throw new Error("SERVER_PRIVATE_KEY not set");
-    }
-
     const provider = new ethers.JsonRpcProvider("https://polygon-rpc.com");
-    const wallet = new ethers.Wallet(privateKey, provider);
-    const contract = new ethers.Contract(WINNER_CONTRACT, abi, wallet);
+    const signerProvider = new ethers.BrowserProvider(window.ethereum);
+    const signer = await signerProvider.getSigner();
+    const winnerContract = new ethers.Contract(winnerContractAddress, winnerContractABI, signer);
 
-    // 2. Transaktion senden
-    const tx = await contract.storeWinner(winnerId);
+    const tx = await winnerContract.storeWinners(tokenIds);
     await tx.wait();
 
-    return res.status(200).json({ txHash: tx.hash });
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ error: err.message || "Failed to store winner" });
+    res.status(200).json({ message: 'Gewinner gespeichert', txHash: tx.hash });
+  } catch (error) {
+    console.error('Fehler beim Speichern der Gewinner:', error);
+    res.status(500).json({ error: error.message });
   }
 }
