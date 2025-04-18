@@ -5,14 +5,17 @@ import './style.css';
 // ABIs
 const winnerRegistryABI = [
   "function getWinners(address nftContract) view returns (uint256[])",
-  "function storeWinners(address nftContract, uint256[] calldata tokenIds) public"
+  "function storeWinners(address nftContract, uint256[] calldata tokenIds) public",
+  "function resetWinners(address nftContract) public",
+  "function owner() view returns (address)"
 ];
 const nftContractABI = [
-  "function getTokenIds() view returns (uint256[])"
+  "function getTokenIds() view returns (uint256[])",
+  "function tokenURI(uint256 tokenId) view returns (string)"
 ];
 
-// Winner Smart Contract (neu strukturierter Contract!)
-const winnerContractAddress = "0x5884711d09B97fb4F519ABd0910d77914FFa9730";
+// Smart Contracts
+const winnerContractAddress = "0xE0aA2Ffb185d39C9D3F1CA6a0239EFeC9E151B27";
 const provider = new ethers.JsonRpcProvider("https://polygon-rpc.com");
 
 export default function App() {
@@ -25,6 +28,27 @@ export default function App() {
   const [txHash, setTxHash] = useState(null);
   const [loading, setLoading] = useState(false);
   const [tokenImages, setTokenImages] = useState({});
+  const [ownerAddress, setOwnerAddress] = useState("");
+  const [currentUser, setCurrentUser] = useState("");
+
+  // Get current user's wallet address
+  const getCurrentUserAddress = async () => {
+    if (window.ethereum) {
+      const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+      setCurrentUser(accounts[0]);
+    }
+  };
+
+  // Fetch contract owner
+  useEffect(() => {
+    const fetchOwner = async () => {
+      const winnerContract = new ethers.Contract(winnerContractAddress, winnerRegistryABI, provider);
+      const owner = await winnerContract.owner();
+      setOwnerAddress(owner.toLowerCase());
+    };
+    fetchOwner();
+    getCurrentUserAddress();
+  }, []);
 
   const fetchUsedTokenIds = async (nftAddress) => {
     const winnerContract = new ethers.Contract(winnerContractAddress, winnerRegistryABI, provider);
@@ -41,23 +65,36 @@ export default function App() {
 
   const loadTokenImage = async (contractAddress, tokenId) => {
     try {
-      const metadataUrl = `https://ipfs.io/ipfs/${contractAddress}/${tokenId}.json`; // Beispielstruktur!
-      const response = await fetch(metadataUrl);
+      const nftContract = new ethers.Contract(contractAddress, nftContractABI, provider);
+      let tokenUri = await nftContract.tokenURI(tokenId);
+
+      if (tokenUri.startsWith("ipfs://")) {
+        tokenUri = tokenUri.replace("ipfs://", "https://cloudflare-ipfs.com/ipfs/");
+      }
+
+      const response = await fetch(tokenUri);
       const metadata = await response.json();
-      return metadata.image || null;
-    } catch {
+
+      let imageUrl = metadata.image;
+      if (imageUrl.startsWith("ipfs://")) {
+        imageUrl = imageUrl.replace("ipfs://", "https://cloudflare-ipfs.com/ipfs/");
+      }
+
+      return imageUrl || null;
+    } catch (err) {
+      console.error("Error loading token image:", err);
       return null;
     }
   };
 
   const applyContract = async () => {
-    setNftContractAddress(inputAddress);
+    setNftContractAddress(inputAddress.trim());
     setCurrentDraw([]);
     setDrawHistory([]);
     setTxHash(null);
     setTokenImages({});
     try {
-      await fetchUsedTokenIds(inputAddress);
+      await fetchUsedTokenIds(inputAddress.trim());
     } catch (err) {
       console.error("Error loading NFT contract:", err);
       setAvailableTokenIds([]);
@@ -87,7 +124,6 @@ export default function App() {
         return;
       }
 
-      // Random draw
       const selected = [];
       while (selected.length < 4) {
         const randomIndex = Math.floor(Math.random() * remainingIds.length);
@@ -97,22 +133,18 @@ export default function App() {
         }
       }
 
-      // Connect to MetaMask
       const signerProvider = new ethers.BrowserProvider(window.ethereum);
       const signer = await signerProvider.getSigner();
       const winnerContract = new ethers.Contract(winnerContractAddress, winnerRegistryABI, signer);
 
-      // Store winners with NFT contract address
       const tx = await winnerContract.storeWinners(nftContractAddress, selected);
       await tx.wait();
       setTxHash(tx.hash);
 
-      // Update UI
       setCurrentDraw(selected);
       setDrawHistory(prev => [...prev, selected]);
       setUsedTokenIds(prev => [...prev, ...selected]);
 
-      // Preload images
       const newImages = { ...tokenImages };
       for (const id of selected) {
         if (!newImages[id]) {
@@ -130,35 +162,73 @@ export default function App() {
     setLoading(false);
   };
 
+  const resetWinners = async () => {
+    if (!nftContractAddress) {
+      alert("No NFT contract selected.");
+      return;
+    }
+
+    try {
+      const signerProvider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await signerProvider.getSigner();
+      const winnerContract = new ethers.Contract(winnerContractAddress, winnerRegistryABI, signer);
+
+      const tx = await winnerContract.resetWinners(nftContractAddress);
+      await tx.wait();
+
+      alert("Winners reset successfully!");
+      setUsedTokenIds([]);
+      setCurrentDraw([]);
+      setDrawHistory([]);
+      setTxHash(null);
+    } catch (err) {
+      console.error("Error resetting winners:", err);
+      alert("Error resetting winners.");
+    }
+  };
+
   const progress = availableTokenIds.length > 0
     ? Math.min((usedTokenIds.length / availableTokenIds.length) * 100, 100)
     : 0;
 
   return (
-    <div className="container">
-      <h1>Pick 4 Random NFTs 🎯</h1>
+    <div className="container" style={{ maxWidth: '800px', margin: '0 auto', padding: '2rem' }}>
+      <h1 style={{ textAlign: 'center' }}>🎾 PadelDraw - Pick 4 Winners</h1>
 
-      {/* NFT Contract input */}
-      <div style={{ marginBottom: '1rem' }}>
+      {/* NFT Contract Input */}
+      <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
         <input
           type="text"
           placeholder="Enter NFT Contract Address"
           value={inputAddress}
           onChange={(e) => setInputAddress(e.target.value)}
-          style={{ padding: '0.5rem', width: '70%' }}
+          style={{ flexGrow: 1, padding: '0.5rem', fontSize: '1rem' }}
         />
         <button
           onClick={applyContract}
-          style={{ marginLeft: '1rem', padding: '0.5rem 1rem' }}
+          style={{ padding: '0.5rem 1rem', fontWeight: 'bold' }}
         >
           Apply
         </button>
       </div>
 
-      {/* Pick Button */}
-      <button onClick={drawWinners} disabled={loading || !nftContractAddress}>
+      <button
+        onClick={drawWinners}
+        disabled={loading || !nftContractAddress}
+        style={{ padding: '0.8rem 2rem', fontWeight: 'bold', fontSize: '1rem', marginBottom: '1rem' }}
+      >
         {loading ? 'Loading...' : 'Pick 4 Winners'}
       </button>
+
+      {/* Owner Reset Button */}
+      {currentUser.toLowerCase() === ownerAddress && (
+        <button
+          onClick={resetWinners}
+          style={{ padding: '0.5rem 1rem', marginLeft: '1rem', backgroundColor: '#ff4d4f', color: '#fff', border: 'none', borderRadius: '5px', fontWeight: 'bold' }}
+        >
+          Reset Winners
+        </button>
+      )}
 
       {/* Progress */}
       {nftContractAddress && (
@@ -188,7 +258,7 @@ export default function App() {
       {/* Winners */}
       {drawHistory.length > 0 && (
         <div style={{ marginTop: '3rem' }}>
-          <h2>Winners 🎉</h2>
+          <h2>🏆 Winners History</h2>
           {drawHistory.map((round, index) => (
             <div key={index} style={{ marginBottom: '2rem' }}>
               <h3>Round {index + 1}</h3>
