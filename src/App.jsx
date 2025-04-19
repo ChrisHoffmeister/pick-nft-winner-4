@@ -130,7 +130,7 @@ export default function App() {
 
       {/* Draw Button */}
       <button onClick={fetchAndStoreWinners} disabled={loading || !nftContractAddress}>
-        {loading ? 'Loading...' : 'Pick 4 Winners'}
+        {loading ? 'Loading...' : 'Pick 4 Players'}
       </button>
 
       {/* Transaction Info */}
