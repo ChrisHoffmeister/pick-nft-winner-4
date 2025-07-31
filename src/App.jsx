@@ -16,7 +16,7 @@ const winnerRegistryABI = [
 // --- Konfiguration ------------------------------------------
 const winnerContractAddress = '0xE0aA2Ffb185d39C9D3F1CA6a0239EFeC9E151B27';
 const provider = new ethers.JsonRpcProvider('https://polygon-rpc.com');
-const ALLOWED_WALLET = (import.meta.env.VITE_ALLOWED_WALLET || '').toLowerCase(); // in Vercel setzen
+const ALLOWED_WALLET = (import.meta.env.VITE_ALLOWED_WALLET || '').toLowerCase();
 
 // ============================================================
 //                      React Component
@@ -54,7 +54,7 @@ export default function App() {
         const tokenIds = await nftContract.getTokenIds();
         setAvailableTokenIds(tokenIds.map((id) => id.toString()));
       } catch (err) {
-        console.error('Error loading initial data:', err);
+        console.error('❌ Error loading initial data:', err);
       }
     };
 
@@ -70,6 +70,7 @@ export default function App() {
         await browserProvider.send('eth_requestAccounts', []);
         const signer = await browserProvider.getSigner();
         const connected = (await signer.getAddress()).toLowerCase();
+        console.log('👤 Connected wallet:', connected);
         setIsAuthorized(connected === ALLOWED_WALLET);
       } catch {
         setIsAuthorized(false);
@@ -80,6 +81,8 @@ export default function App() {
 
   // ---------- Gewinner ziehen & speichern -------------------
   const fetchAndStoreWinners = async () => {
+    console.log('🚀 Draw process started');
+
     if (!isAuthorized) {
       alert('❌ Unauthorized wallet – only the allowed wallet may pick winners.');
       return;
@@ -96,28 +99,36 @@ export default function App() {
       );
 
       if (filteredTokens.length < 1) {
-        alert('Not enough available NFTs to draw! ❌');
+        alert('❌ Not enough available NFTs to draw!');
         setLoading(false);
         return;
       }
 
       const selectedTokenId = pickOneWinner(filteredTokens);
+      console.log('🎯 Selected token ID:', selectedTokenId);
 
       const signerProvider = new ethers.BrowserProvider(window.ethereum);
       await signerProvider.send('eth_requestAccounts', []);
       const signer = await signerProvider.getSigner();
+      console.log('🧾 Using signer:', await signer.getAddress());
+
       const winnerContract = new ethers.Contract(
         winnerContractAddress,
         winnerRegistryABI,
         signer,
       );
 
+      console.log('📡 Sending transaction to storeWinners...');
       const tx = await winnerContract.storeWinners(
         nftContractAddress,
-        [selectedTokenId], // ein Token als Array übergeben
+        [selectedTokenId],
       );
+      console.log('⏳ Waiting for tx confirmation...', tx.hash);
       await tx.wait();
+
       setTxHash(tx.hash);
+      console.log('✅ Transaction confirmed:', tx.hash);
+
       setLastWinners([selectedTokenId]);
 
       const nftContract = new ethers.Contract(
@@ -132,7 +143,7 @@ export default function App() {
       setTokenImages([imageUrl]);
 
     } catch (error) {
-      console.error('Error during draw/save:', error);
+      console.error('❗️ Error during draw/save:', error);
       alert('Error during draw or save! ❗️');
     }
 
