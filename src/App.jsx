@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
 import './style.css';
+import { pickOneWinner } from '../api/pick-winner.js';
 
 // --- ABIs ----------------------------------------------------
 const nftContractABI = [
@@ -94,18 +95,13 @@ export default function App() {
         (id) => !usedTokenIds.includes(id),
       );
 
-      if (filteredTokens.length < 3) {
+      if (filteredTokens.length < 1) {
         alert('Not enough available NFTs to draw! ❌');
         setLoading(false);
         return;
       }
 
-      const selected = [];
-      while (selected.length < 3) {
-        const id =
-          filteredTokens[Math.floor(Math.random() * filteredTokens.length)];
-        if (!selected.includes(id)) selected.push(id);
-      }
+      const selectedTokenId = pickOneWinner(filteredTokens);
 
       const signerProvider = new ethers.BrowserProvider(window.ethereum);
       await signerProvider.send('eth_requestAccounts', []);
@@ -118,38 +114,35 @@ export default function App() {
 
       const tx = await winnerContract.storeWinners(
         nftContractAddress,
-        selected,
+        [selectedTokenId], // ein Token als Array übergeben
       );
       await tx.wait();
       setTxHash(tx.hash);
-      setLastWinners(selected);
+      setLastWinners([selectedTokenId]);
 
       const nftContract = new ethers.Contract(
         nftContractAddress,
         nftContractABI,
         provider,
       );
-      const images = [];
-      for (const id of selected) {
-        const uri = await nftContract.tokenURI(id);
-        images.push(
-          uri.startsWith('ipfs://')
-            ? uri.replace('ipfs://', 'https://ipfs.io/ipfs/')
-            : uri,
-        );
-      }
-      setTokenImages(images);
+      const uri = await nftContract.tokenURI(selectedTokenId);
+      const imageUrl = uri.startsWith('ipfs://')
+        ? uri.replace('ipfs://', 'https://ipfs.io/ipfs/')
+        : uri;
+      setTokenImages([imageUrl]);
+
     } catch (error) {
       console.error('Error during draw/save:', error);
       alert('Error during draw or save! ❗️');
     }
+
     setLoading(false);
   };
 
   // ========================== UI ============================
   return (
     <div className="container">
-      <h1>Pick 3 Random NFTs 🎯</h1>
+      <h1>Pick 1 Random NFT 🎯</h1>
 
       {/* NFT Contract Address */}
       <div style={{ marginBottom: '1rem' }}>
@@ -174,7 +167,7 @@ export default function App() {
           onClick={fetchAndStoreWinners}
           disabled={loading || !nftContractAddress}
         >
-          {loading ? 'Loading...' : 'Pick 3 Players'}
+          {loading ? 'Loading...' : 'Pick Winner'}
         </button>
       ) : (
         <p style={{ color: 'red' }}>
@@ -199,7 +192,7 @@ export default function App() {
       {/* Last Draw */}
       {lastWinners.length > 0 && (
         <div style={{ marginTop: '2rem' }}>
-          <h2>Latest 3 Winners 🎉</h2>
+          <h2>Latest Winner 🎉</h2>
           <div
             style={{
               display: 'flex',
@@ -218,10 +211,7 @@ export default function App() {
                   padding: '1rem',
                   borderRadius: '10px',
                   boxShadow: '0 4px 8px rgba(0,0,0,0.1)',
-                  transition: 'transform 0.3s',
                 }}
-                onMouseEnter={(e) => (e.currentTarget.style.transform = 'scale(1.05)')}
-                onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
               >
                 <p>
                   <strong>Token ID: {id}</strong>
