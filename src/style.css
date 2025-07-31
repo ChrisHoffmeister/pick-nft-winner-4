@@ -1,106 +1,59 @@
 body {
-  font-family: 'Inter', sans-serif;
-  background-color: #f8f9fa;
-  margin: 0;
-  padding: 0;
-  color: #333;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  padding: 2rem;
+  background-color: #f4f4f9;
 }
 
 .container {
   max-width: 900px;
   margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
 }
 
-h1 {
-  font-size: 2.5rem;
-  margin-bottom: 0.5rem;
+.header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  justify-content: flex-start;
+  margin-bottom: 1.5rem;
 }
 
-h2 {
-  font-size: 1.5rem;
-  margin-top: 2rem;
-  margin-bottom: 1rem;
-}
-
-input[type="text"] {
-  padding: 0.75rem;
-  border: 1px solid #ccc;
-  border-radius: 8px;
-  font-size: 1rem;
-  width: 60%;
-  max-width: 500px;
+.logo {
+  height: 40px;
+  width: auto;
 }
 
 button {
-  background-color: #4f46e5;
+  background-color: #B604FF;
   color: white;
-  padding: 0.75rem 1.5rem;
   border: none;
-  border-radius: 8px;
-  font-size: 1rem;
+  padding: 0.5rem 1.2rem;
+  font-weight: bold;
+  border-radius: 6px;
   cursor: pointer;
-  transition: background-color 0.2s ease;
-  margin-left: 1rem;
+  transition: background-color 0.3s ease;
 }
 
 button:hover {
-  background-color: #4338ca;
+  background-color: #9403cc;
 }
 
-.card {
-  background-color: #ffffff;
-  padding: 1rem;
-  border-radius: 12px;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
-  width: 220px;
-  text-align: center;
-  transition: transform 0.2s;
+button:disabled {
+  background-color: #ccc;
+  cursor: not-allowed;
 }
 
-.card:hover {
-  transform: scale(1.03);
-}
-
-.card img {
-  width: 100%;
-  border-radius: 8px;
-  margin-top: 0.5rem;
-}
-
-.draw-grid {
+.card-container {
   display: flex;
   flex-wrap: wrap;
   gap: 20px;
   justify-content: center;
 }
 
-a {
-  color: #4f46e5;
-  text-decoration: none;
-}
-
-a:hover {
-  text-decoration: underline;
-}
-
-.status-badge {
-  display: inline-block;
-  padding: 0.4rem 0.75rem;
-  font-size: 0.9rem;
-  border-radius: 9999px;
-  margin-top: 1rem;
-  background-color: #fee2e2;
-  color: #991b1b;
-}
-
-.status-badge.success {
-  background-color: #d1fae5;
-  color: #065f46;
-}
-
-.transaction-info {
-  margin-top: 1.5rem;
-  font-size: 0.95rem;
+.card {
+  width: 220px;
+  text-align: center;
+  background: #f9f9f9;
+  padding: 1rem;
+  border-radius: 10px;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
 }
