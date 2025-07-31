@@ -7,6 +7,7 @@ const nftContractABI = [
   'function getTokenIds() view returns (uint256[])',
   'function tokenURI(uint256 tokenId) view returns (string)',
 ];
+
 const winnerRegistryABI = [
   'function getWinners(address nftContract) view returns (uint256[])',
   'function storeWinners(address nftContract, uint256[] calldata tokenIds) public',
@@ -17,7 +18,9 @@ const provider = new ethers.JsonRpcProvider('https://polygon-rpc.com');
 const ALLOWED_WALLET = (import.meta.env.VITE_ALLOWED_WALLET || '').toLowerCase();
 
 export default function App() {
-  const [nftContractAddress, setNftContractAddress] = useState('0x01F170967F1Ec9088c169b20e57a2Eb8A4352cd3');
+  const [nftContractAddress, setNftContractAddress] = useState(
+    '0x01F170967F1Ec9088c169b20e57a2Eb8A4352cd3',
+  );
   const [inputAddress, setInputAddress] = useState('');
   const [usedTokenIds, setUsedTokenIds] = useState([]);
   const [availableTokenIds, setAvailableTokenIds] = useState([]);
@@ -30,17 +33,26 @@ export default function App() {
   useEffect(() => {
     const fetchInitialData = async () => {
       try {
-        const winnerContract = new ethers.Contract(winnerContractAddress, winnerRegistryABI, provider);
+        const winnerContract = new ethers.Contract(
+          winnerContractAddress,
+          winnerRegistryABI,
+          provider,
+        );
         const winners = await winnerContract.getWinners(nftContractAddress);
         setUsedTokenIds(winners.map((id) => id.toString()));
 
-        const nftContract = new ethers.Contract(nftContractAddress, nftContractABI, provider);
+        const nftContract = new ethers.Contract(
+          nftContractAddress,
+          nftContractABI,
+          provider,
+        );
         const tokenIds = await nftContract.getTokenIds();
         setAvailableTokenIds(tokenIds.map((id) => id.toString()));
       } catch (err) {
         console.error('❌ Error loading initial data:', err);
       }
     };
+
     fetchInitialData();
   }, [nftContractAddress]);
 
@@ -75,7 +87,10 @@ export default function App() {
     setTxHash(null);
 
     try {
-      const filteredTokens = availableTokenIds.filter((id) => !usedTokenIds.includes(id));
+      const filteredTokens = availableTokenIds.filter(
+        (id) => !usedTokenIds.includes(id),
+      );
+
       if (filteredTokens.length < 1) {
         alert('❌ Not enough available NFTs to draw!');
         setLoading(false);
@@ -90,10 +105,17 @@ export default function App() {
       const signer = await signerProvider.getSigner();
       console.log('🧾 Using signer:', await signer.getAddress());
 
-      const winnerContract = new ethers.Contract(winnerContractAddress, winnerRegistryABI, signer);
+      const winnerContract = new ethers.Contract(
+        winnerContractAddress,
+        winnerRegistryABI,
+        signer,
+      );
 
       console.log('📡 Sending transaction to storeWinners...');
-      const tx = await winnerContract.storeWinners(nftContractAddress, [selectedTokenId]);
+      const tx = await winnerContract.storeWinners(
+        nftContractAddress,
+        [selectedTokenId],
+      );
       console.log('⏳ Waiting for tx confirmation...', tx.hash);
       await tx.wait();
 
@@ -102,9 +124,15 @@ export default function App() {
 
       setLastWinners([selectedTokenId]);
 
-      const nftContract = new ethers.Contract(nftContractAddress, nftContractABI, provider);
+      const nftContract = new ethers.Contract(
+        nftContractAddress,
+        nftContractABI,
+        provider,
+      );
       const uri = await nftContract.tokenURI(selectedTokenId);
-      const imageUrl = uri.startsWith('ipfs://') ? uri.replace('ipfs://', 'https://ipfs.io/ipfs/') : uri;
+      const imageUrl = uri.startsWith('ipfs://')
+        ? uri.replace('ipfs://', 'https://ipfs.io/ipfs/')
+        : uri;
       setTokenImages([imageUrl]);
 
     } catch (error) {
@@ -117,7 +145,14 @@ export default function App() {
 
   return (
     <div className="container">
-      <h1>Pick 1 Random NFT 🎯</h1>
+      <div className="header">
+        <img
+          src="https://mtg.3member.me/images/3memberMeLogo.svg"
+          alt="3member.me"
+          className="logo"
+        />
+        <h1>Pick 1 Random NFT 🎯</h1>
+      </div>
 
       <div style={{ marginBottom: '1rem' }}>
         <input
@@ -125,38 +160,55 @@ export default function App() {
           placeholder="Enter NFT Contract Address"
           value={inputAddress}
           onChange={(e) => setInputAddress(e.target.value)}
+          style={{ padding: '0.5rem', width: '70%' }}
         />
-        <button onClick={() => setNftContractAddress(inputAddress)}>Apply</button>
+        <button
+          onClick={() => setNftContractAddress(inputAddress)}
+          style={{ marginLeft: '1rem' }}
+        >
+          Apply
+        </button>
       </div>
 
       {isAuthorized ? (
-        <button onClick={fetchAndStoreWinners} disabled={loading || !nftContractAddress}>
+        <button
+          onClick={fetchAndStoreWinners}
+          disabled={loading || !nftContractAddress}
+        >
           {loading ? 'Loading...' : 'Pick Winner'}
         </button>
       ) : (
-        <div className="status-badge">
+        <p style={{ color: 'red' }}>
           🔒 Only the authorized wallet can pick winners.
-        </div>
+        </p>
       )}
 
       {txHash && (
-        <div className="transaction-info">
+        <p style={{ marginTop: '1rem' }}>
           ✅ Transaction saved:{' '}
-          <a href={`https://polygonscan.com/tx/${txHash}`} target="_blank" rel="noopener noreferrer">
+          <a
+            href={`https://polygonscan.com/tx/${txHash}`}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
             {txHash.slice(0, 8)}...{txHash.slice(-6)}
           </a>
-        </div>
+        </p>
       )}
 
       {lastWinners.length > 0 && (
-        <div>
+        <div style={{ marginTop: '2rem' }}>
           <h2>Latest Winner 🎉</h2>
-          <div className="draw-grid">
+          <div className="card-container">
             {lastWinners.map((id, i) => (
               <div className="card" key={i}>
                 <p><strong>Token ID: {id}</strong></p>
                 {tokenImages[i] ? (
-                  <img src={tokenImages[i]} alt={`NFT ${id}`} />
+                  <img
+                    src={tokenImages[i]}
+                    alt={`NFT ${id}`}
+                    style={{ width: '100%', borderRadius: '8px', marginTop: '0.5rem' }}
+                  />
                 ) : (
                   <p>No image available 🖼️</p>
                 )}
@@ -167,9 +219,9 @@ export default function App() {
       )}
 
       {usedTokenIds.length > 0 && (
-        <div>
+        <div style={{ marginTop: '2rem' }}>
           <h2>Previous Draws 🏆</h2>
-          <div className="draw-grid">
+          <div className="card-container">
             {usedTokenIds.map((id, i) => (
               <div className="card" key={i}>
                 <p><strong>Token ID: {id}</strong></p>
