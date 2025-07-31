@@ -159,7 +159,7 @@ export default function App() {
           alt="3member logo"
           className="logo"
         />
-        <h1>Pick 1 Random NFT 🎯</h1>
+        <h1>Pick 1 random winner NFT ID from the collective Event NFT </h1>
       </div>
 
       {/* NFT Contract Address */}
