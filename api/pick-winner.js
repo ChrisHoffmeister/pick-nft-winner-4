@@ -1,9 +1,10 @@
 // api/pick-winner.js
-export function pickWinners(allTokenIds, numberOfWinners) {
-  if (allTokenIds.length < numberOfWinners) {
-    throw new Error('Nicht genug Token zum Auswählen!');
+
+export function pickOneWinner(allTokenIds) {
+  if (allTokenIds.length < 1) {
+    throw new Error('Keine Token verfügbar!');
   }
 
-  const shuffled = [...allTokenIds].sort(() => 0.5 - Math.random());
-  return shuffled.slice(0, numberOfWinners);
+  const randomIndex = Math.floor(Math.random() * allTokenIds.length);
+  return allTokenIds[randomIndex];
 }
